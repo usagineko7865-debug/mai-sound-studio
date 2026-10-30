@@ -1,0 +1,9 @@
+{
+  "name": "MAI SOUND STUDIO 検証",
+  "short_name": "MAI検証",
+  "start_url": "./mix-test.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#14171c",
+  "theme_color": "#14171c"
+}

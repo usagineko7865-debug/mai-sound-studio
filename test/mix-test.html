@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MAI検証">
+<meta name="theme-color" content="#14171c">
+<link rel="manifest" href="manifest-test.webmanifest">
+<title>MAI SOUND STUDIO 検証</title>
+<style>
+  :root {
+    --bg: #14171c;
+    --surface: #1c2027;
+    --line: #2b313b;
+    --text: #e8ebf0;
+    --muted: #8b94a3;
+    --accent: #f0a431;
+    --ok: #4cc38a;
+    --bad: #ef6b5f;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 2px; letter-spacing: .02em; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+  section { border-top: 1px solid var(--line); padding: 16px 0; }
+  h2 { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 10px; }
+
+  button {
+    font: inherit; color: var(--text); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px;
+    min-height: 48px; padding: 0 16px; cursor: pointer;
+  }
+  button:focus-visible, label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #enable { width: 100%; min-height: 60px; font-size: 18px; font-weight: 700; background: var(--accent); color: #1a1205; border: 0; }
+  #enable.on { background: var(--surface); color: var(--ok); border: 1px solid var(--ok); }
+
+  .row { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg label { display: block; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg span { display: block; padding: 11px 16px; min-height: 48px; background: var(--surface); color: var(--muted); border-right: 1px solid var(--line); }
+  .seg label:last-child span { border-right: 0; }
+  .seg input:checked + span { background: var(--accent); color: #1a1205; font-weight: 700; }
+  .field-label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  .note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+
+  input[type=range] { width: 220px; height: 32px; accent-color: var(--accent); }
+
+  .pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .pad {
+    min-height: 96px; padding: 12px; text-align: left; border-radius: 12px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    border-left: 6px solid var(--accent);
+    transition: background-color .05s;
+  }
+  .pad b { font-size: 18px; }
+  .pad small { color: var(--muted); font-size: 12px; }
+  .pad.playing { background: #3a2c10; border-color: var(--accent); }
+  .pad.playing small { color: var(--accent); }
+  #stop { margin-top: 12px; width: 100%; min-height: 56px; border-color: var(--bad); color: var(--bad); font-weight: 700; }
+
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; font-variant-numeric: tabular-nums; word-break: break-all; }
+  .good { color: var(--ok); } .warn { color: var(--accent); } .bad { color: var(--bad); }
+
+  ol.check { margin: 0; padding-left: 22px; font-size: 14px; }
+  ol.check li { margin: 4px 0; }
+
+  #log { margin-top: 8px; max-height: 260px; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: 12px/1.6 ui-monospace, Menlo, monospace; -webkit-user-select: text; user-select: text; }
+  #log div { border-bottom: 1px solid #242a33; }
+  #log div:last-child { border-bottom: 0; }
+  .log-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .log-actions button { min-height: 44px; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>MAI SOUND STUDIO 検証ページ</h1>
+  <p class="sub">YouTubeのBGMを止めずに効果音を重ねられるかを、iPad実機で確かめます。</p>
+
+  <section>
+    <button id="enable" type="button">① 音声を有効化する</button>
+    <p class="note">最初に1回タップしてください。このページは録音（マイク）を使いません。</p>
+  </section>
+
+  <section>
+    <h2>検証条件を切り替える</h2>
+    <div class="row">
+      <div>
+        <span class="field-label">音声セッション（navigator.audioSession）</span>
+        <div class="seg" role="radiogroup" aria-label="音声セッション">
+          <label><input type="radio" name="session" value="auto" checked><span>auto</span></label>
+          <label><input type="radio" name="session" value="ambient"><span>ambient</span></label>
+          <label><input type="radio" name="session" value="playback"><span>playback</span></label>
+        </div>
+      </div>
+      <div>
+        <span class="field-label">再生方式</span>
+        <div class="seg" role="radiogroup" aria-label="再生方式">
+          <label><input type="radio" name="engine" value="webaudio" checked><span>Web Audio</span></label>
+          <label><input type="radio" name="engine" value="audio"><span>audio要素</span></label>
+        </div>
+      </div>
+      <div>
+        <span class="field-label">全体音量（Web Audioのみ）：<span id="volLabel">80</span>%</span>
+        <input id="vol" type="range" min="0" max="100" value="80" aria-label="全体音量">
+      </div>
+    </div>
+    <p class="note">基本は「auto + Web Audio」→「ambient + Web Audio」の順に試してください。playbackは「BGMが止まる想定」の比較用です。</p>
+  </section>
+
+  <section>
+    <h2>効果音（ブラウザ内で生成した音です）</h2>
+    <div class="pads" id="pads"></div>
+    <button id="stop" type="button">全音停止</button>
+  </section>
+
+  <section>
+    <h2>判定チェック（YouTubeで音楽を再生しながら）</h2>
+    <ol class="check">
+      <li>効果音を鳴らしても、YouTubeのBGMが止まらない</li>
+      <li>効果音の最中、BGMの音量が下がらない</li>
+      <li>効果音が遅れず鳴る（連打、同時押しも）</li>
+      <li>ホーム画面へ戻る・画面をロックした後も、再度鳴る</li>
+      <li>AG03MK2を接続した状態でも、BGMと効果音の両方が出る</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>状態</h2>
+    <dl id="status"></dl>
+  </section>
+
+  <section>
+    <h2>ログ</h2>
+    <div id="log" aria-live="polite"></div>
+    <div class="log-actions">
+      <button id="copyLog" type="button">ログをコピー</button>
+      <button id="clearLog" type="button">ログを消去</button>
+    </div>
+    <p class="note">「Δ」はタップから再生命令までの処理時間です。スピーカーから聞こえるまでの遅れは含みません。体感の遅れは耳で判断してください。</p>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var SR = 44100;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- 効果音の生成（外部ファイル不要） ----------
+  function gen(seconds, fn) {
+    var n = Math.floor(SR * seconds);
+    var d = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      var t = i / SR;
+      // 末尾10msでフェードアウトしてプチ音を防ぐ
+      var tail = Math.min(1, (seconds - t) / 0.01);
+      d[i] = fn(t) * tail;
+    }
+    return d;
+  }
+  var TAU = Math.PI * 2;
+  var atk = function (t) { return Math.min(1, t / 0.005); };
+
+  var SOUNDS = [
+    { id: 'pin', name: 'ピン', sub: '0.4秒', color: '#f0a431',
+      data: gen(0.4, function (t) { return atk(t) * Math.exp(-9 * t) * 0.5 * Math.sin(TAU * 1320 * t); }) },
+    { id: 'buzz', name: 'ブザー', sub: '0.6秒', color: '#ef6b5f',
+      data: gen(0.6, function (t) { return atk(t) * Math.exp(-2 * t) * 0.22 * (Math.sin(TAU * 220 * t) > 0 ? 1 : -1); }) },
+    { id: 'chime', name: 'チャイム', sub: '1.2秒', color: '#4cc38a',
+      data: gen(1.2, function (t) {
+        var a = atk(t) * Math.exp(-4 * t) * (Math.sin(TAU * 880 * t) + 0.5 * Math.sin(TAU * 1320 * t));
+        var t2 = t - 0.25;
+        var b = t2 > 0 ? atk(t2) * Math.exp(-4 * t2) * Math.sin(TAU * 1760 * t2) : 0;
+        return 0.28 * (a + b);
+      }) },
+    { id: 'clap', name: '拍手風', sub: '0.8秒', color: '#6aa8ff',
+      data: gen(0.8, function (t) { return (Math.random() * 2 - 1) * Math.exp(-(t % 0.07) * 60) * Math.exp(-2 * t) * 0.7; }) },
+    { id: 'long', name: 'ロングトーン', sub: '5秒', color: '#c08bff',
+      data: gen(5, function (t) {
+        var fade = Math.min(1, t / 0.1);
+        return fade * 0.2 * Math.sin(TAU * 440 * t) * (0.85 + 0.15 * Math.sin(TAU * 5 * t));
+      }) }
+  ];
+
+  function toWavBlob(f32) {
+    var n = f32.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    function w(o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, SR, true); v.setUint32(28, SR * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    w(36, 'data'); v.setUint32(40, n * 2, true);
+    for (var i = 0; i < n; i++) {
+      v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, f32[i])) * 0x7fff, true);
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+
+  // ---------- ログ ----------
+  var logEl = $('log');
+  var logLines = [];
+  function log(msg) {
+    var d = new Date();
+    var ts = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+    var line = ts + '  ' + msg;
+    logLines.push(line);
+    if (logLines.length > 200) logLines.shift();
+    var div = document.createElement('div');
+    div.textContent = line;
+    logEl.appendChild(div);
+    while (logEl.children.length > 80) logEl.removeChild(logEl.firstChild);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // ---------- 状態 ----------
+  var ctx = null, master = null;
+  var engine = 'webaudio';
+  var sessionType = 'auto';
+  var masterVol = 0.8;
+  var active = [];          // 再生中のハンドル
+  var playCount = {};       // 音ごとの再生中カウント
+
+  var hasSession = 'audioSession' in navigator;
+
+  function cls(text, c) { return '<span class="' + c + '">' + text + '</span>'; }
+  function refresh() {
+    var rows = [];
+    rows.push(['AudioContext', ctx ? cls(ctx.state, ctx.state === 'running' ? 'good' : 'warn') : cls('未作成', 'warn')]);
+    rows.push(['サンプルレート', ctx ? ctx.sampleRate + ' Hz' : '-']);
+    rows.push(['baseLatency', ctx && ctx.baseLatency != null ? (ctx.baseLatency * 1000).toFixed(1) + ' ms' : '-']);
+    rows.push(['outputLatency', ctx && ctx.outputLatency != null ? (ctx.outputLatency * 1000).toFixed(1) + ' ms' : '非対応/不明']);
+    rows.push(['audioSession API', hasSession ? cls('あり', 'good') : cls('なし（この端末では使えません）', 'bad')]);
+    if (hasSession) {
+      rows.push(['audioSession.type', navigator.audioSession.type]);
+      rows.push(['audioSession.state', navigator.audioSession.state || '-']);
+    }
+    var standalone = (window.navigator.standalone === true) || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    rows.push(['起動方法', standalone ? 'ホーム画面アプリ' : 'ブラウザ（Safari）']);
+    rows.push(['画面の状態', document.visibilityState]);
+    rows.push(['再生方式', engine === 'webaudio' ? 'Web Audio' : 'audio要素']);
+    $('status').innerHTML = rows.map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
+  }
+
+  // ---------- 音声セッション ----------
+  function applySession(v) {
+    sessionType = v;
+    if (!hasSession) { log('audioSession非対応のため切り替えできません'); refresh(); return; }
+    try {
+      navigator.audioSession.type = v;
+      log('audioSession.type = ' + navigator.audioSession.type);
+    } catch (e) {
+      log('audioSession設定エラー: ' + e.name + ' ' + e.message);
+    }
+    refresh();
+  }
+  if (hasSession) {
+    try {
+      navigator.audioSession.onstatechange = function () {
+        log('audioSession.state → ' + navigator.audioSession.state);
+        refresh();
+      };
+    } catch (e) { /* 無視 */ }
+  }
+
+  // ---------- 有効化 ----------
+  function enable() {
+    try {
+      if (!ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) { log('エラー: Web Audio APIに対応していません'); return; }
+        ctx = new AC({ latencyHint: 'interactive' });
+        master = ctx.createGain();
+        master.gain.value = masterVol;
+        master.connect(ctx.destination);
+        ctx.onstatechange = function () { log('AudioContext → ' + ctx.state); refresh(); };
+        SOUNDS.forEach(function (s) {
+          var ab = ctx.createBuffer(1, s.data.length, SR);
+          ab.copyToChannel(s.data, 0);
+          s.buffer = ab;
+          s.url = URL.createObjectURL(toWavBlob(s.data));
+        });
+        log('AudioContext作成（' + ctx.sampleRate + ' Hz）');
+      }
+      var p = ctx.resume();
+      // 無音を1回鳴らしてiOSの制限を解除
+      var b = ctx.createBuffer(1, 1, SR);
+      var src = ctx.createBufferSource();
+      src.buffer = b; src.connect(ctx.destination); src.start(0);
+      if (p && p.then) {
+        p.then(function () { log('有効化OK'); refresh(); },
+               function (e) { log('resume失敗: ' + e.message); refresh(); });
+      }
+      $('enable').classList.add('on');
+      $('enable').textContent = '音声は有効です（状態を再確認するなら再タップ）';
+      applySession(sessionType);
+    } catch (e) {
+      log('有効化エラー: ' + e.name + ' ' + e.message);
+    }
+    refresh();
+  }
+
+  // ---------- 再生 ----------
+  function setPlaying(id, delta) {
+    playCount[id] = Math.max(0, (playCount[id] || 0) + delta);
+    var el = document.querySelector('[data-id="' + id + '"]');
+    if (el) el.classList.toggle('playing', playCount[id] > 0);
+  }
+
+  function play(s) {
+    if (!ctx) { log('先に「音声を有効化する」をタップしてください'); return; }
+    var t0 = performance.now();
+    var tag = '[' + sessionType + '/' + (engine === 'webaudio' ? 'WebAudio' : 'audio要素') + '] ' + s.name;
+
+    if (engine === 'webaudio') {
+      if (ctx.state !== 'running') {
+        log('注意: AudioContextが ' + ctx.state + ' です。再開を試みます');
+        ctx.resume().catch(function (e) { log('resume失敗: ' + e.message); });
+      }
+      var src = ctx.createBufferSource();
+      src.buffer = s.buffer;
+      src.connect(master);
+      var h = { stop: function () { try { src.stop(); } catch (e) {} } };
+      active.push(h);
+      setPlaying(s.id, 1);
+      src.onended = function () {
+        var i = active.indexOf(h); if (i >= 0) active.splice(i, 1);
+        setPlaying(s.id, -1);
+      };
+      src.start(0);
+      log(tag + '  Δ' + (performance.now() - t0).toFixed(1) + 'ms');
+    } else {
+      var a = new Audio(s.url);
+      a.preload = 'auto';
+      var h2 = { stop: function () { try { a.pause(); a.currentTime = 0; } catch (e) {} finish(); } };
+      var done = false;
+      function finish() {
+        if (done) return; done = true;
+        var i = active.indexOf(h2); if (i >= 0) active.splice(i, 1);
+        setPlaying(s.id, -1);
+      }
+      active.push(h2);
+      setPlaying(s.id, 1);
+      a.onended = finish;
+      var pr = a.play();
+      if (pr && pr.then) {
+        pr.then(function () { log(tag + '  Δ' + (performance.now() - t0).toFixed(1) + 'ms'); })
+          .catch(function (e) { log(tag + '  再生エラー: ' + e.name + ' ' + e.message); finish(); });
+      }
+    }
+  }
+
+  function stopAll() {
+    var list = active.slice();
+    list.forEach(function (h) { h.stop(); });
+    log('全音停止（' + list.length + '件）');
+  }
+
+  // ---------- 画面の組み立て ----------
+  var padsEl = $('pads');
+  SOUNDS.forEach(function (s) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pad';
+    b.setAttribute('data-id', s.id);
+    b.style.borderLeftColor = s.color;
+    b.innerHTML = '<b>' + s.name + '</b><small>' + s.sub + '</small>';
+    // Web Audioは反応速度を優先してpointerdown、audio要素は再生許可のためclick
+    b.addEventListener('pointerdown', function () { if (engine === 'webaudio') play(s); });
+    b.addEventListener('click', function () { if (engine === 'audio') play(s); });
+    padsEl.appendChild(b);
+  });
+
+  $('enable').addEventListener('click', enable);
+  $('stop').addEventListener('click', stopAll);
+
+  Array.prototype.forEach.call(document.querySelectorAll('input[name=session]'), function (r) {
+    r.addEventListener('change', function () { applySession(r.value); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('input[name=engine]'), function (r) {
+    r.addEventListener('change', function () { engine = r.value; log('再生方式 = ' + engine); refresh(); });
+  });
+  $('vol').addEventListener('input', function (e) {
+    masterVol = e.target.value / 100;
+    $('volLabel').textContent = e.target.value;
+    if (master) master.gain.value = masterVol;
+  });
+
+  $('clearLog').addEventListener('click', function () { logEl.innerHTML = ''; logLines = []; });
+  $('copyLog').addEventListener('click', function () {
+    var text = logLines.join('\n') + '\n\n' + $('status').innerText;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { log('ログをコピーしました'); },
+        function () { log('コピーに失敗しました。ログ欄を長押しして選択してください'); });
+    } else {
+      log('この環境ではコピーできません。ログ欄を長押しして選択してください');
+    }
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    log('画面: ' + document.visibilityState);
+    if (document.visibilityState === 'visible' && ctx && ctx.state !== 'running') {
+      ctx.resume().then(function () { log('復帰後にresume成功'); refresh(); },
+                        function (e) { log('復帰後のresume失敗: ' + e.message + '（再度「有効化」をタップ）'); });
+    }
+    refresh();
+  });
+  window.addEventListener('error', function (e) { log('JSエラー: ' + e.message); });
+
+  log('読み込み完了 / audioSession API: ' + (hasSession ? 'あり' : 'なし'));
+  refresh();
+})();
+</script>
+</body>
+</html>
