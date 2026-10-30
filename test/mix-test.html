@@ -22,111 +22,131 @@
     --bad: #ef6b5f;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
   body {
     font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
     font-size: 16px;
     line-height: 1.5;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none;
     touch-action: manipulation;
   }
-  main { max-width: 960px; margin: 0 auto; padding: 20px 16px 40px; }
-  h1 { font-size: 20px; font-weight: 700; margin: 0 0 2px; letter-spacing: .02em; }
-  .sub { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
-  section { border-top: 1px solid var(--line); padding: 16px 0; }
-  h2 { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 10px; }
-
   button {
     font: inherit; color: var(--text); background: var(--surface);
     border: 1px solid var(--line); border-radius: 10px;
     min-height: 48px; padding: 0 16px; cursor: pointer;
   }
   button:focus-visible, label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-  #enable { width: 100%; min-height: 60px; font-size: 18px; font-weight: 700; background: var(--accent); color: #1a1205; border: 0; }
-  #enable.on { background: var(--surface); color: var(--ok); border: 1px solid var(--ok); }
 
-  .row { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .seg label { display: block; }
-  .seg input { position: absolute; opacity: 0; pointer-events: none; }
-  .seg span { display: block; padding: 11px 16px; min-height: 48px; background: var(--surface); color: var(--muted); border-right: 1px solid var(--line); }
-  .seg label:last-child span { border-right: 0; }
-  .seg input:checked + span { background: var(--accent); color: #1a1205; font-weight: 700; }
-  .field-label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
-  .note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  /* ---- 画面全体：上のバー + 効果音パッド ---- */
+  #app {
+    height: 100%; display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #bar { display: flex; gap: 10px; padding: 10px 12px; align-items: center; border-bottom: 1px solid var(--line); }
+  #bar .title { font-weight: 700; letter-spacing: .02em; margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #bar button { min-height: 52px; min-width: 52px; font-size: 16px; white-space: nowrap; }
+  #mute { font-weight: 700; color: var(--ok); border-color: var(--ok); min-width: 132px; }
+  #mute.muted { background: var(--bad); border-color: var(--bad); color: #fff; }
+  #stop { color: var(--bad); border-color: var(--bad); font-weight: 700; }
 
-  input[type=range] { width: 220px; height: 32px; accent-color: var(--accent); }
-
-  .pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .pads {
+    flex: 1; min-height: 0; padding: 12px;
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-auto-rows: 1fr;
+  }
   .pad {
-    min-height: 96px; padding: 12px; text-align: left; border-radius: 12px;
+    padding: 16px; text-align: left; border-radius: 16px;
     display: flex; flex-direction: column; justify-content: space-between;
-    border-left: 6px solid var(--accent);
+    border-left: 8px solid var(--accent);
     transition: background-color .05s;
   }
-  .pad b { font-size: 18px; }
-  .pad small { color: var(--muted); font-size: 12px; }
+  .pad b { font-size: 24px; }
+  .pad small { color: var(--muted); font-size: 14px; }
   .pad.playing { background: #3a2c10; border-color: var(--accent); }
   .pad.playing small { color: var(--accent); }
-  #stop { margin-top: 12px; width: 100%; min-height: 56px; border-color: var(--bad); color: var(--bad); font-weight: 700; }
+
+  #hint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 90vw; text-align: center; }
+  #hint.show { opacity: 1; }
+
+  /* ---- 横から出る設定パネル ---- */
+  #backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  #drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 90vw);
+    background: var(--bg); border-left: 1px solid var(--line);
+    transform: translateX(100%); transition: transform .22s ease;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: calc(env(safe-area-inset-top) + 12px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 24px) 16px;
+  }
+  body.open #drawer { transform: none; }
+  body.open #backdrop { opacity: 1; pointer-events: auto; }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .drawer-head h1 { font-size: 18px; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+  #drawer section { border-top: 1px solid var(--line); padding: 14px 0; }
+  h2 { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 8px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; max-width: 100%; }
+  .seg label { display: block; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg span { display: block; padding: 11px 14px; min-height: 48px; background: var(--surface); color: var(--muted); border-right: 1px solid var(--line); }
+  .seg label:last-child span { border-right: 0; }
+  .seg input:checked + span { background: var(--accent); color: #1a1205; font-weight: 700; }
+  .note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); }
 
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
   dt { color: var(--muted); }
   dd { margin: 0; font-variant-numeric: tabular-nums; word-break: break-all; }
   .good { color: var(--ok); } .warn { color: var(--accent); } .bad { color: var(--bad); }
-
   ol.check { margin: 0; padding-left: 22px; font-size: 14px; }
   ol.check li { margin: 4px 0; }
-
-  #log { margin-top: 8px; max-height: 260px; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: 12px/1.6 ui-monospace, Menlo, monospace; -webkit-user-select: text; user-select: text; }
-  #log div { border-bottom: 1px solid #242a33; }
-  #log div:last-child { border-bottom: 0; }
-  .log-actions { display: flex; gap: 8px; margin-top: 8px; }
-  .log-actions button { min-height: 44px; font-size: 14px; }
 </style>
 </head>
 <body>
-<main>
-  <h1>MAI SOUND STUDIO 検証ページ</h1>
-  <p class="sub">YouTubeのBGMを止めずに効果音を重ねられるかを、iPad実機で確かめます。</p>
+<div id="app">
+  <div id="bar">
+    <div class="title">MAI SOUND STUDIO</div>
+    <button id="mute" type="button" aria-pressed="false">🔊 音あり</button>
+    <button id="stop" type="button">■ 全音停止</button>
+    <button id="full" type="button" aria-label="全画面">⛶ 全画面</button>
+    <button id="menu" type="button" aria-label="設定を開く">⚙ 設定</button>
+  </div>
+  <div class="pads" id="pads"></div>
+</div>
+<div id="hint"></div>
+
+<div id="backdrop"></div>
+<aside id="drawer" aria-label="設定">
+  <div class="drawer-head">
+    <h1>設定</h1>
+    <button id="close" type="button">閉じる</button>
+  </div>
+  <p class="sub">YouTubeのBGMを止めずに効果音を重ねられるかを、iPad実機で確かめます。録音（マイク）は使いません。</p>
 
   <section>
-    <button id="enable" type="button">① 音声を有効化する</button>
-    <p class="note">最初に1回タップしてください。このページは録音（マイク）を使いません。</p>
-  </section>
-
-  <section>
-    <h2>検証条件を切り替える</h2>
-    <div class="row">
-      <div>
-        <span class="field-label">音声セッション（navigator.audioSession）</span>
-        <div class="seg" role="radiogroup" aria-label="音声セッション">
-          <label><input type="radio" name="session" value="auto" checked><span>auto</span></label>
-          <label><input type="radio" name="session" value="ambient"><span>ambient</span></label>
-          <label><input type="radio" name="session" value="playback"><span>playback</span></label>
-        </div>
-      </div>
-      <div>
-        <span class="field-label">再生方式</span>
-        <div class="seg" role="radiogroup" aria-label="再生方式">
-          <label><input type="radio" name="engine" value="webaudio" checked><span>Web Audio</span></label>
-          <label><input type="radio" name="engine" value="audio"><span>audio要素</span></label>
-        </div>
-      </div>
-      <div>
-        <span class="field-label">全体音量（Web Audioのみ）：<span id="volLabel">80</span>%</span>
-        <input id="vol" type="range" min="0" max="100" value="80" aria-label="全体音量">
-      </div>
+    <h2>音声セッション（他の音との付き合い方）</h2>
+    <div class="seg" role="radiogroup" aria-label="音声セッション">
+      <label><input type="radio" name="session" value="auto" checked><span>auto</span></label>
+      <label><input type="radio" name="session" value="ambient"><span>ambient</span></label>
+      <label><input type="radio" name="session" value="playback"><span>playback</span></label>
     </div>
-    <p class="note">基本は「auto + Web Audio」→「ambient + Web Audio」の順に試してください。playbackは「BGMが止まる想定」の比較用です。</p>
+    <p class="note">auto：iPad任せ ／ ambient：YouTubeなど他の音を止めずに重ねる（本命） ／ playback：このページが主役になり他の音を止める（比較用）</p>
   </section>
 
   <section>
-    <h2>効果音（ブラウザ内で生成した音です）</h2>
-    <div class="pads" id="pads"></div>
-    <button id="stop" type="button">全音停止</button>
+    <h2>再生方式（効果音の鳴らし方）</h2>
+    <div class="seg" role="radiogroup" aria-label="再生方式">
+      <label><input type="radio" name="engine" value="webaudio" checked><span>Web Audio</span></label>
+      <label><input type="radio" name="engine" value="audio"><span>audio要素</span></label>
+    </div>
+    <p class="note">Web Audio：音を先に読み込んで即座に鳴らす。速く、連打・同時押しに強い（おすすめ） ／ audio要素：ふつうの音声プレーヤー方式（比較用）</p>
+  </section>
+
+  <section>
+    <h2>全体音量（Web Audioのみ）：<span id="volLabel">80</span>%</h2>
+    <input id="vol" type="range" min="0" max="100" value="80" aria-label="全体音量">
+    <p class="note">基本は「auto + Web Audio」→「ambient + Web Audio」の順に試してください。</p>
   </section>
 
   <section>
@@ -144,17 +164,7 @@
     <h2>状態</h2>
     <dl id="status"></dl>
   </section>
-
-  <section>
-    <h2>ログ</h2>
-    <div id="log" aria-live="polite"></div>
-    <div class="log-actions">
-      <button id="copyLog" type="button">ログをコピー</button>
-      <button id="clearLog" type="button">ログを消去</button>
-    </div>
-    <p class="note">「Δ」はタップから再生命令までの処理時間です。スピーカーから聞こえるまでの遅れは含みません。体感の遅れは耳で判断してください。</p>
-  </section>
-</main>
+</aside>
 
 <script>
 (function () {
@@ -212,36 +222,32 @@
     return new Blob([buf], { type: 'audio/wav' });
   }
 
-  // ---------- ログ ----------
-  var logEl = $('log');
-  var logLines = [];
-  function log(msg) {
-    var d = new Date();
-    var ts = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
-    var line = ts + '  ' + msg;
-    logLines.push(line);
-    if (logLines.length > 200) logLines.shift();
-    var div = document.createElement('div');
-    div.textContent = line;
-    logEl.appendChild(div);
-    while (logEl.children.length > 80) logEl.removeChild(logEl.firstChild);
-    logEl.scrollTop = logEl.scrollHeight;
-  }
-
   // ---------- 状態 ----------
   var ctx = null, master = null;
   var engine = 'webaudio';
   var sessionType = 'auto';
   var masterVol = 0.8;
+  var muted = false;
   var active = [];          // 再生中のハンドル
   var playCount = {};       // 音ごとの再生中カウント
 
   var hasSession = 'audioSession' in navigator;
 
+  function log(msg) { try { console.log(msg); } catch (e) { /* 無視 */ } }
+
+  var hintTimer = null;
+  function hint(msg) {
+    var el = $('hint');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(function () { el.classList.remove('show'); }, 3000);
+  }
+
   function cls(text, c) { return '<span class="' + c + '">' + text + '</span>'; }
   function refresh() {
     var rows = [];
-    rows.push(['AudioContext', ctx ? cls(ctx.state, ctx.state === 'running' ? 'good' : 'warn') : cls('未作成', 'warn')]);
+    rows.push(['AudioContext', ctx ? cls(ctx.state, ctx.state === 'running' ? 'good' : 'warn') : cls('未作成（最初のタップで作成）', 'warn')]);
     rows.push(['サンプルレート', ctx ? ctx.sampleRate + ' Hz' : '-']);
     rows.push(['baseLatency', ctx && ctx.baseLatency != null ? (ctx.baseLatency * 1000).toFixed(1) + ' ms' : '-']);
     rows.push(['outputLatency', ctx && ctx.outputLatency != null ? (ctx.outputLatency * 1000).toFixed(1) + ' ms' : '非対応/不明']);
@@ -260,7 +266,7 @@
   // ---------- 音声セッション ----------
   function applySession(v) {
     sessionType = v;
-    if (!hasSession) { log('audioSession非対応のため切り替えできません'); refresh(); return; }
+    if (!hasSession) { refresh(); return; }
     try {
       navigator.audioSession.type = v;
       log('audioSession.type = ' + navigator.audioSession.type);
@@ -271,48 +277,56 @@
   }
   if (hasSession) {
     try {
-      navigator.audioSession.onstatechange = function () {
-        log('audioSession.state → ' + navigator.audioSession.state);
-        refresh();
-      };
+      navigator.audioSession.onstatechange = function () { refresh(); };
     } catch (e) { /* 無視 */ }
   }
 
-  // ---------- 有効化 ----------
-  function enable() {
+  // ---------- 音声の準備（最初のタップで自動実行） ----------
+  function ensureAudio() {
     try {
       if (!ctx) {
         var AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) { log('エラー: Web Audio APIに対応していません'); return; }
+        if (!AC) { hint('この端末はWeb Audioに対応していません'); return; }
         ctx = new AC({ latencyHint: 'interactive' });
         master = ctx.createGain();
-        master.gain.value = masterVol;
+        master.gain.value = muted ? 0 : masterVol;
         master.connect(ctx.destination);
-        ctx.onstatechange = function () { log('AudioContext → ' + ctx.state); refresh(); };
+        ctx.onstatechange = function () { refresh(); };
         SOUNDS.forEach(function (s) {
           var ab = ctx.createBuffer(1, s.data.length, SR);
           ab.copyToChannel(s.data, 0);
           s.buffer = ab;
           s.url = URL.createObjectURL(toWavBlob(s.data));
         });
-        log('AudioContext作成（' + ctx.sampleRate + ' Hz）');
+        // 無音を1回鳴らしてiOSの制限を解除
+        var b = ctx.createBuffer(1, 1, SR);
+        var src = ctx.createBufferSource();
+        src.buffer = b; src.connect(ctx.destination); src.start(0);
+        applySession(sessionType);
       }
-      var p = ctx.resume();
-      // 無音を1回鳴らしてiOSの制限を解除
-      var b = ctx.createBuffer(1, 1, SR);
-      var src = ctx.createBufferSource();
-      src.buffer = b; src.connect(ctx.destination); src.start(0);
-      if (p && p.then) {
-        p.then(function () { log('有効化OK'); refresh(); },
-               function (e) { log('resume失敗: ' + e.message); refresh(); });
+      if (ctx.state !== 'running') {
+        var p = ctx.resume();
+        if (p && p.catch) p.catch(function (e) { log('resume失敗: ' + e.message); });
       }
-      $('enable').classList.add('on');
-      $('enable').textContent = '音声は有効です（状態を再確認するなら再タップ）';
-      applySession(sessionType);
     } catch (e) {
-      log('有効化エラー: ' + e.name + ' ' + e.message);
+      log('音声準備エラー: ' + e.name + ' ' + e.message);
     }
     refresh();
+  }
+  // どこを触っても（指を離した時点でも）音声を準備・再開する
+  ['pointerdown', 'touchend', 'click'].forEach(function (ev) {
+    document.addEventListener(ev, ensureAudio, true);
+  });
+
+  // ---------- ミュート ----------
+  function setMuted(m) {
+    muted = m;
+    if (master) master.gain.value = muted ? 0 : masterVol;
+    active.forEach(function (h) { if (h.setMuted) h.setMuted(muted); });
+    var b = $('mute');
+    b.classList.toggle('muted', muted);
+    b.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    b.textContent = muted ? '🔇 ミュート中' : '🔊 音あり';
   }
 
   // ---------- 再生 ----------
@@ -323,15 +337,10 @@
   }
 
   function play(s) {
-    if (!ctx) { log('先に「音声を有効化する」をタップしてください'); return; }
-    var t0 = performance.now();
-    var tag = '[' + sessionType + '/' + (engine === 'webaudio' ? 'WebAudio' : 'audio要素') + '] ' + s.name;
+    ensureAudio();
+    if (!ctx) return;
 
     if (engine === 'webaudio') {
-      if (ctx.state !== 'running') {
-        log('注意: AudioContextが ' + ctx.state + ' です。再開を試みます');
-        ctx.resume().catch(function (e) { log('resume失敗: ' + e.message); });
-      }
       var src = ctx.createBufferSource();
       src.buffer = s.buffer;
       src.connect(master);
@@ -343,12 +352,15 @@
         setPlaying(s.id, -1);
       };
       src.start(0);
-      log(tag + '  Δ' + (performance.now() - t0).toFixed(1) + 'ms');
     } else {
       var a = new Audio(s.url);
       a.preload = 'auto';
-      var h2 = { stop: function () { try { a.pause(); a.currentTime = 0; } catch (e) {} finish(); } };
+      a.muted = muted;
       var done = false;
+      var h2 = {
+        stop: function () { try { a.pause(); a.currentTime = 0; } catch (e) {} finish(); },
+        setMuted: function (m) { a.muted = m; }
+      };
       function finish() {
         if (done) return; done = true;
         var i = active.indexOf(h2); if (i >= 0) active.splice(i, 1);
@@ -358,17 +370,41 @@
       setPlaying(s.id, 1);
       a.onended = finish;
       var pr = a.play();
-      if (pr && pr.then) {
-        pr.then(function () { log(tag + '  Δ' + (performance.now() - t0).toFixed(1) + 'ms'); })
-          .catch(function (e) { log(tag + '  再生エラー: ' + e.name + ' ' + e.message); finish(); });
+      if (pr && pr.catch) {
+        pr.catch(function (e) { log(s.name + ' 再生エラー: ' + e.name + ' ' + e.message); finish(); });
       }
     }
   }
 
   function stopAll() {
-    var list = active.slice();
-    list.forEach(function (h) { h.stop(); });
-    log('全音停止（' + list.length + '件）');
+    active.slice().forEach(function (h) { h.stop(); });
+  }
+
+  // ---------- 全画面 ----------
+  var rootEl = document.documentElement;
+  function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement; }
+  function toggleFull() {
+    var req = rootEl.requestFullscreen || rootEl.webkitRequestFullscreen;
+    var exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (!req) {
+      hint('この端末では全画面にできません。共有ボタン →「ホーム画面に追加」から開くと全画面になります');
+      return;
+    }
+    try {
+      var r = fsElement() ? exit.call(document) : req.call(rootEl);
+      if (r && r.catch) r.catch(function () { hint('全画面にできませんでした。ホーム画面に追加して開いてください'); });
+    } catch (e) {
+      hint('全画面にできませんでした。ホーム画面に追加して開いてください');
+    }
+  }
+  function syncFull() { $('full').textContent = fsElement() ? '⛶ 全画面を終了' : '⛶ 全画面'; }
+  document.addEventListener('fullscreenchange', syncFull);
+  document.addEventListener('webkitfullscreenchange', syncFull);
+
+  // ---------- 設定パネル ----------
+  function openDrawer(open) {
+    document.body.classList.toggle('open', open);
+    if (open) refresh();
   }
 
   // ---------- 画面の組み立て ----------
@@ -386,44 +422,31 @@
     padsEl.appendChild(b);
   });
 
-  $('enable').addEventListener('click', enable);
+  $('mute').addEventListener('click', function () { setMuted(!muted); });
   $('stop').addEventListener('click', stopAll);
+  $('full').addEventListener('click', toggleFull);
+  $('menu').addEventListener('click', function () { openDrawer(true); });
+  $('close').addEventListener('click', function () { openDrawer(false); });
+  $('backdrop').addEventListener('click', function () { openDrawer(false); });
 
   Array.prototype.forEach.call(document.querySelectorAll('input[name=session]'), function (r) {
     r.addEventListener('change', function () { applySession(r.value); });
   });
   Array.prototype.forEach.call(document.querySelectorAll('input[name=engine]'), function (r) {
-    r.addEventListener('change', function () { engine = r.value; log('再生方式 = ' + engine); refresh(); });
+    r.addEventListener('change', function () { engine = r.value; refresh(); });
   });
   $('vol').addEventListener('input', function (e) {
     masterVol = e.target.value / 100;
     $('volLabel').textContent = e.target.value;
-    if (master) master.gain.value = masterVol;
-  });
-
-  $('clearLog').addEventListener('click', function () { logEl.innerHTML = ''; logLines = []; });
-  $('copyLog').addEventListener('click', function () {
-    var text = logLines.join('\n') + '\n\n' + $('status').innerText;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(
-        function () { log('ログをコピーしました'); },
-        function () { log('コピーに失敗しました。ログ欄を長押しして選択してください'); });
-    } else {
-      log('この環境ではコピーできません。ログ欄を長押しして選択してください');
-    }
+    if (master && !muted) master.gain.value = masterVol;
   });
 
   document.addEventListener('visibilitychange', function () {
-    log('画面: ' + document.visibilityState);
-    if (document.visibilityState === 'visible' && ctx && ctx.state !== 'running') {
-      ctx.resume().then(function () { log('復帰後にresume成功'); refresh(); },
-                        function (e) { log('復帰後のresume失敗: ' + e.message + '（再度「有効化」をタップ）'); });
-    }
+    if (document.visibilityState === 'visible') ensureAudio();
     refresh();
   });
   window.addEventListener('error', function (e) { log('JSエラー: ' + e.message); });
 
-  log('読み込み完了 / audioSession API: ' + (hasSession ? 'あり' : 'なし'));
   refresh();
 })();
 </script>
