@@ -51,6 +51,7 @@
   #bar button { min-height: 52px; min-width: 52px; font-size: 16px; white-space: nowrap; }
   #mute { font-weight: 700; color: var(--ok); border-color: var(--ok); min-width: 132px; }
   #mute.muted { background: var(--bad); border-color: var(--bad); color: #fff; }
+  #stop { color: var(--bad); border-color: var(--bad); font-weight: 700; }
   #editBtn.on { background: var(--accent); border-color: var(--accent); color: #1a1205; font-weight: 700; }
 
   #banks { display: flex; gap: 8px; padding: 0 12px 8px; overflow-x: auto; border-bottom: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
@@ -136,6 +137,7 @@
   <div id="bar">
     <div class="title">MAI SOUND STUDIO</div>
     <button id="mute" type="button" aria-pressed="false">🔊 音あり</button>
+    <button id="stop" type="button">■ 全停止</button>
     <button id="editBtn" type="button" aria-pressed="false">✎ 編集</button>
     <button id="full" type="button" aria-label="全画面">⛶ 全画面</button>
     <button id="menu" type="button" aria-label="設定を開く">⚙ 設定</button>
@@ -1160,6 +1162,7 @@
   });
 
   $('mute').addEventListener('click', function () { setMuted(!muted); });
+  $('stop').addEventListener('click', function () { active.slice().forEach(function (h) { h.stop(); }); });
   $('editBtn').addEventListener('click', function () { setEditing(!editing); });
   $('full').addEventListener('click', toggleFull);
   $('menu').addEventListener('click', openDrawer);
