@@ -51,6 +51,10 @@
   #bar button { min-height: 52px; min-width: 52px; font-size: 16px; white-space: nowrap; }
   #mute { font-weight: 700; color: var(--ok); border-color: var(--ok); min-width: 132px; }
   #mute.muted { background: var(--bad); border-color: var(--bad); color: #fff; }
+  #aud { min-width: 52px; padding: 0; font-size: 22px; }
+  #aud.idle { color: var(--muted); }
+  #aud.ok { color: var(--ok); }
+  #aud.ng { color: var(--accent); border-color: var(--accent); }
   #stop { color: var(--bad); border-color: var(--bad); font-weight: 700; }
   #editBtn.on { background: var(--accent); border-color: var(--accent); color: #1a1205; font-weight: 700; }
 
@@ -136,6 +140,7 @@
 <div id="app">
   <div id="bar">
     <div class="title">MAI SOUND STUDIO</div>
+    <button id="aud" type="button" class="idle" aria-label="音声の状態。タップすると音声を作り直します">●</button>
     <button id="mute" type="button" aria-pressed="false">🔊 音あり</button>
     <button id="stop" type="button">■ 全停止</button>
     <button id="editBtn" type="button" aria-pressed="false">✎ 編集</button>
@@ -518,6 +523,7 @@
     rows.push(['起動方法', standalone ? 'ホーム画面アプリ' : 'ブラウザ（Safari）']);
     rows.push(['画面の状態', document.visibilityState]);
     rows.push(['再生方式', engine === 'webaudio' ? 'Web Audio' : 'audio要素']);
+    updateAud();
     $('status').innerHTML = rows.map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
   }
 
@@ -605,8 +611,32 @@
   }
 
   // ---------- 音声の準備（最初のタップで自動実行） ----------
-  function ensureAudio() {
+  var stuck = false;          // 動いているように見えて音が止まっている状態
+  var recoverTimer = null;
+  var lastT = -1, frozen = 0;
+
+  function updateAud() {
+    var b = $('aud');
+    if (!b) return;
+    var ok = ctx && ctx.state === 'running' && !stuck;
+    b.className = !ctx ? 'idle' : (ok ? 'ok' : 'ng');
+    b.title = !ctx ? '音声：まだ準備前（最初のタップで準備されます）' : (ok ? '音声：正常' : '音声：止まっています。タップで作り直し');
+  }
+  // 音声の出力を作り直す（止まった時の復旧用）。読み込み済みの音は残す
+  function rebuildAudio() {
+    var old = ctx;
+    active.slice().forEach(function (h) { try { h.stop(); } catch (e) {} });
+    active = []; handles = {};
+    ctx = null; master = null; stuck = false; frozen = 0; lastT = -1;
+    try { if (old && old.close) old.close(); } catch (e) { /* 無視 */ }
+    ensureAudio(true);
+    renderPads();
+    log('AudioContextを作り直しました');
+  }
+
+  function ensureAudio(gesture) {
     try {
+      if (ctx && (ctx.state === 'closed' || (gesture && stuck))) { rebuildAudio(); return; }
       if (!ctx) {
         var AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) { hint('この端末はWeb Audioに対応していません'); return; }
@@ -616,6 +646,7 @@
         master.connect(ctx.destination);
         ctx.onstatechange = function () { refresh(); };
         BUILTIN_ORDER.forEach(function (id) {
+          if (BUILTIN[id].url) { try { URL.revokeObjectURL(BUILTIN[id].url); } catch (e) {} }
           var s = BUILTIN[id];
           var ab = ctx.createBuffer(1, s.data.length, SR);
           ab.copyToChannel(s.data, 0);
@@ -630,8 +661,16 @@
         decodeAll();
       }
       if (ctx.state !== 'running') {
+        var c = ctx;
         var p = ctx.resume();
         if (p && p.catch) p.catch(function (e) { log('resume失敗: ' + e.message); });
+        // 指でタップした時に再開できなければ、作り直す
+        if (gesture === true && !recoverTimer) {
+          recoverTimer = setTimeout(function () {
+            recoverTimer = null;
+            if (ctx === c && c.state !== 'running') rebuildAudio();
+          }, 700);
+        }
       }
     } catch (e) {
       log('音声準備エラー: ' + e.name + ' ' + e.message);
@@ -640,8 +679,18 @@
   }
   // どこを触っても（指を離した時点でも）音声を準備・再開する
   ['pointerdown', 'touchend', 'click'].forEach(function (ev) {
-    document.addEventListener(ev, ensureAudio, true);
+    document.addEventListener(ev, function (e) { ensureAudio(e.type === 'touchend' || e.type === 'click'); }, true);
   });
+  // 見張り：動いているはずなのに時計が進まない＝音が止まっている
+  setInterval(function () {
+    if (!ctx || document.visibilityState !== 'visible') { frozen = 0; return; }
+    if (ctx.state === 'running') {
+      if (ctx.currentTime === lastT) frozen++; else frozen = 0;
+      lastT = ctx.currentTime;
+      if (frozen >= 2) stuck = true;
+    } else { frozen = 0; lastT = -1; }
+    updateAud();
+  }, 1000);
 
   // ---------- ミュート ----------
   function setMuted(m) {
@@ -669,7 +718,7 @@
   function stopPad(p) { (handles[p.id] || []).slice().forEach(function (h) { h.stop(); }); }
 
   function play(p) {
-    ensureAudio();
+    if (stuck) rebuildAudio(); else ensureAudio();
     if (!ctx) return;
     var s = srcOf(p);
     if (!s) return;
@@ -1161,6 +1210,10 @@
     hint('初期状態に戻しました');
   });
 
+  $('aud').addEventListener('click', function () {
+    if (ctx) rebuildAudio(); else ensureAudio(true);
+    hint('音声を作り直しました');
+  });
   $('mute').addEventListener('click', function () { setMuted(!muted); });
   $('stop').addEventListener('click', function () { active.slice().forEach(function (h) { h.stop(); }); });
   $('editBtn').addEventListener('click', function () { setEditing(!editing); });
