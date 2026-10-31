@@ -4,6 +4,7 @@
   "start_url": "./mix-test.html",
   "scope": "./",
   "display": "standalone",
+  "orientation": "landscape",
   "background_color": "#14171c",
   "theme_color": "#14171c"
 }

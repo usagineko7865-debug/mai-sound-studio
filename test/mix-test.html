@@ -41,17 +41,25 @@
   select { width: 100%; }
   button:focus-visible, label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  /* ---- 画面全体：上のバー + 効果音パッド ---- */
+  /* ---- 画面全体：上のバー + ページ切替 + 効果音パッド ---- */
   #app {
     height: 100%; display: flex; flex-direction: column;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
-  #bar { display: flex; gap: 10px; padding: 10px 12px; align-items: center; border-bottom: 1px solid var(--line); }
+  #bar { display: flex; gap: 10px; padding: 10px 12px; align-items: center; }
   #bar .title { font-weight: 700; letter-spacing: .02em; margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #bar button { min-height: 52px; min-width: 52px; font-size: 16px; white-space: nowrap; }
   #mute { font-weight: 700; color: var(--ok); border-color: var(--ok); min-width: 132px; }
   #mute.muted { background: var(--bad); border-color: var(--bad); color: #fff; }
   #editBtn.on { background: var(--accent); border-color: var(--accent); color: #1a1205; font-weight: 700; }
+
+  #banks { display: flex; gap: 8px; padding: 0 12px 8px; overflow-x: auto; border-bottom: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
+  #banks button { min-height: 44px; font-size: 15px; white-space: nowrap; border-radius: 22px; }
+  #banks button.sel { background: var(--accent); border-color: var(--accent); color: #1a1205; font-weight: 700; }
+  #banks .tool { border-style: dashed; color: var(--accent); border-color: var(--accent); }
+  #banks .tool.danger { color: var(--bad); border-color: var(--bad); }
+  #banks .tool { display: none; }
+  body.editing #banks .tool { display: block; }
 
   .pads { flex: 1; min-height: 0; padding: 10px; display: grid; gap: 10px; }
   .pad {
@@ -65,8 +73,10 @@
   .pad.empty { opacity: .45; border-style: dashed; }
   .pad.playing { background: #3a2c10; border-color: var(--accent); }
   .pad.playing small { color: var(--accent); }
-  body.editing .pad { border-top: 1px dashed var(--accent); border-right: 1px dashed var(--accent); border-bottom: 1px dashed var(--accent); }
+  body.editing .pad { border-top: 1px dashed var(--accent); border-right: 1px dashed var(--accent); border-bottom: 1px dashed var(--accent); touch-action: none; }
   body.editing .pad.empty { opacity: .8; }
+  .pad.dragging { opacity: .5; transform: scale(.95); }
+  .pad.drop { outline: 3px solid var(--accent); outline-offset: -3px; }
 
   #hint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 90vw; text-align: center; z-index: 5; }
   #hint.show { opacity: 1; }
@@ -109,7 +119,9 @@
   .val { color: var(--text); font-variant-numeric: tabular-nums; }
   .row2 { display: flex; gap: 10px; }
   .row2 > * { flex: 1; }
-  #fileInput { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .chk { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+  .chk input { width: 28px; height: 28px; accent-color: var(--accent); }
+  .file-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
   dt { color: var(--muted); }
@@ -128,6 +140,7 @@
     <button id="full" type="button" aria-label="全画面">⛶ 全画面</button>
     <button id="menu" type="button" aria-label="設定を開く">⚙ 設定</button>
   </div>
+  <div id="banks" role="tablist" aria-label="ページ"></div>
   <div class="pads" id="pads"></div>
 </div>
 <div id="hint"></div>
@@ -143,12 +156,12 @@
 
   <section>
     <h2>ボタンの割り当て</h2>
-    <button id="goEdit" type="button" class="btn-wide btn-accent">✎ ボタンを編集する（MP3の割り当て・名前・音量・ピッチ）</button>
-    <p class="note">押したあと、編集したいボタンをタップしてください。終わったら上の「編集中」をもう一度押すと通常モードに戻ります。</p>
+    <button id="goEdit" type="button" class="btn-wide btn-accent">✎ 編集する（MP3・名前・音量・ピッチ・並べ替え・ページ）</button>
+    <p class="note">押したあと、編集したいボタンをタップします。ボタンを指でドラッグして別のボタンに重ねると、入れ替わります。終わったら上の「編集中」をもう一度押すと通常モードに戻ります。</p>
   </section>
 
   <section>
-    <h2>ボタンの数（列 × 行）</h2>
+    <h2>このページのボタンの数（列 × 行）</h2>
     <div class="stepper"><span class="lbl">列</span><button type="button" data-grid="cols" data-d="-1">−</button><output id="colsOut">6</output><button type="button" data-grid="cols" data-d="1">＋</button></div>
     <div class="stepper"><span class="lbl">行</span><button type="button" data-grid="rows" data-d="-1">−</button><output id="rowsOut">4</output><button type="button" data-grid="rows" data-d="1">＋</button></div>
     <p class="note">列は2〜8、行は1〜6。減らしても、隠れたボタンの設定は残ります。</p>
@@ -170,13 +183,29 @@
       <label><input type="radio" name="engine" value="webaudio" checked><span>Web Audio</span></label>
       <label><input type="radio" name="engine" value="audio"><span>audio要素</span></label>
     </div>
-    <p class="note">Web Audio：音を先に読み込んで即座に鳴らす。速く、連打・同時押しに強い（おすすめ） ／ audio要素：ふつうの音声プレーヤー方式（比較用。ボタンごとの音量は効きません）</p>
+    <p class="note">Web Audio：音を先に読み込んで即座に鳴らす。速く、連打・同時押しに強い（おすすめ） ／ audio要素：ふつうの音声プレーヤー方式（比較用。ボタンごとの音量は効かず、「押している間だけ」は「もう一度押すと止まる」になります）</p>
   </section>
 
   <section>
     <h2>全体音量（Web Audioのみ）：<span id="volLabel">80</span>%</h2>
     <input id="vol" type="range" min="0" max="100" value="80" aria-label="全体音量">
     <p class="note">基本は「auto + Web Audio」→「ambient + Web Audio」の順に試してください。</p>
+  </section>
+
+  <section>
+    <h2>画面の向き</h2>
+    <label class="chk"><input type="checkbox" id="lockLand"><span>横向きに固定する</span></label>
+    <p class="note">ホーム画面に追加して開いた場合は、横向き固定の指定が入っています。ただしiPadは、この指定を無視することがあります。その場合はコントロールセンターの「画面の向きのロック」を使ってください。</p>
+  </section>
+
+  <section>
+    <h2>バックアップ</h2>
+    <div class="row2">
+      <button id="bkExport" type="button">書き出す</button>
+      <button id="bkImport" type="button">読み込む</button>
+    </div>
+    <input id="bkFile" class="file-hidden" type="file" accept=".json,application/json">
+    <p class="note">全ページの設定と、割り当てたMP3を1つのファイル（.json）に保存します。iPadが保存データを消してしまった時や、機種変更の時は、読み込むと元に戻ります。書き出したファイルは「ファイル」アプリに保存されます。読み込むと、今の設定は置き換わります。</p>
   </section>
 
   <section>
@@ -197,8 +226,8 @@
 
   <section>
     <h2>初期化</h2>
-    <button id="resetAll" type="button" class="btn-wide btn-danger">全ボタンを初期状態に戻す</button>
-    <p class="note">割り当てたMP3・名前・音量・ピッチを消して、最初の5音に戻します。</p>
+    <button id="resetAll" type="button" class="btn-wide btn-danger">すべて初期状態に戻す</button>
+    <p class="note">全ページの割り当て・名前・音量・ピッチを消して、最初の5音に戻します。</p>
   </section>
 </aside>
 
@@ -221,8 +250,26 @@
       <button type="button" id="edPick" class="btn-wide btn-accent">MP3などを選ぶ</button>
       <button type="button" id="edTry" class="btn-wide">▶ 試聴</button>
     </div>
-    <input id="fileInput" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac">
-    <p class="note" id="edFileInfo">「ファイル」アプリやダウンロードから、MP3・M4A・WAVを選べます。選ぶと名前もファイル名になります（あとで変更できます）。</p>
+    <input id="fileInput" class="file-hidden" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac">
+    <p class="note" id="edFileInfo"></p>
+  </section>
+
+  <section>
+    <h2>鳴らし方</h2>
+    <select id="edMode" aria-label="鳴らし方">
+      <option value="once">重ねて鳴らす（標準）</option>
+      <option value="retrigger">前の音を止めて、頭から鳴らす</option>
+      <option value="toggle">もう一度押すと止まる</option>
+      <option value="loop">ループ（もう一度押すと止まる）</option>
+      <option value="hold">押している間だけ鳴る</option>
+    </select>
+  </section>
+
+  <section>
+    <h2>頭出し：<span id="edStartOut" class="val">0.00</span> 秒</h2>
+    <input id="edStart" type="range" min="0" max="5" step="0.01" value="0" aria-label="頭出し">
+    <div class="row2"><button type="button" id="edAuto">自動で頭出し</button><button type="button" id="edStartReset">0に戻す</button></div>
+    <p class="note">MP3の最初の無音を飛ばします。「自動」は、音が始まる位置を探して合わせます。</p>
   </section>
 
   <section>
@@ -253,8 +300,9 @@
   'use strict';
 
   var SR = 44100;
-  var MAX_COLS = 8, MAX_ROWS = 6, SLOTS = MAX_COLS * MAX_ROWS;
+  var MAX_COLS = 8, MAX_ROWS = 6, SLOTS = MAX_COLS * MAX_ROWS, MAX_BANKS = 8;
   var COLORS = ['#f0a431', '#ef6b5f', '#4cc38a', '#6aa8ff', '#c08bff', '#ff8fc7', '#4fd1d9', '#b8c0cc'];
+  var MODES = { once: '', retrigger: '↺', toggle: '⏯', loop: '🔁', hold: '👆' };
   var $ = function (id) { return document.getElementById(id); };
 
   // ---------- 内蔵の効果音（外部ファイル不要） ----------
@@ -307,57 +355,99 @@
     return new Blob([buf], { type: 'audio/wav' });
   }
 
-  // ---------- ボタン設定の保存（localStorage + IndexedDB） ----------
-  var LS_KEY = 'mai.pads.v1';
-  var cfg = { cols: 6, rows: 4, pads: [] };
+  function log(msg) { try { console.log(msg); } catch (e) { /* 無視 */ } }
+  function clamp(n, lo, hi) { n = Number(n); if (isNaN(n)) n = lo; return Math.max(lo, Math.min(hi, n)); }
+  function escapeHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
-  function defaultPad(i) {
-    var id = BUILTIN_ORDER[i];
-    if (id) return { name: BUILTIN[id].name, color: BUILTIN[id].color, kind: 'builtin', builtin: id, fileKey: '', fileName: '', vol: 100, pitch: 0 };
-    return { name: '', color: COLORS[i % COLORS.length], kind: 'empty', builtin: '', fileKey: '', fileName: '', vol: 100, pitch: 0 };
+  // ---------- 設定データ（ページ → ボタン） ----------
+  var LS_KEY = 'mai.pads.v2', LS_KEY_V1 = 'mai.pads.v1';
+  var cfg = null;          // { bank, lock, banks: [{ name, cols, rows, pads: [...] }] }
+  var uidSeq = 0;
+  function uid() { uidSeq++; return 'p' + uidSeq; }
+
+  function emptyPad() {
+    return { id: uid(), name: '', color: COLORS[0], kind: 'empty', builtin: '', fileKey: '', fileName: '', vol: 100, pitch: 0, mode: 'once', start: 0 };
   }
-  function defaultCfg() {
-    var c = { cols: 6, rows: 4, pads: [] };
-    for (var i = 0; i < SLOTS; i++) c.pads.push(defaultPad(i));
+  function defaultBank(name, withBuiltin) {
+    var b = { name: name, cols: 6, rows: 4, pads: [] };
+    for (var i = 0; i < SLOTS; i++) {
+      var p = emptyPad();
+      p.color = COLORS[i % COLORS.length];
+      var id = withBuiltin ? BUILTIN_ORDER[i] : '';
+      if (id) { p.name = BUILTIN[id].name; p.color = BUILTIN[id].color; p.kind = 'builtin'; p.builtin = id; }
+      b.pads.push(p);
+    }
+    return b;
+  }
+  function defaultCfg() { return { bank: 0, lock: false, banks: [defaultBank('ページ1', true)] }; }
+
+  function parsePad(p) {
+    var d = emptyPad();
+    if (!p) return d;
+    d.name = String(p.name || '').slice(0, 14);
+    d.color = COLORS.indexOf(p.color) >= 0 ? p.color : d.color;
+    d.kind = (p.kind === 'builtin' && BUILTIN[p.builtin]) ? 'builtin' : (p.kind === 'file' && p.fileKey ? 'file' : 'empty');
+    d.builtin = d.kind === 'builtin' ? p.builtin : '';
+    d.fileKey = d.kind === 'file' ? String(p.fileKey) : '';
+    d.fileName = d.kind === 'file' ? String(p.fileName || '') : '';
+    d.vol = clamp(p.vol == null ? 100 : p.vol, 0, 150);
+    d.pitch = clamp(p.pitch || 0, -12, 12);
+    d.mode = MODES.hasOwnProperty(p.mode) ? p.mode : 'once';
+    d.start = clamp(p.start || 0, 0, 60);
+    return d;
+  }
+  function parseBank(b, i) {
+    var o = defaultBank(String((b && b.name) || ('ページ' + (i + 1))).slice(0, 12), false);
+    o.cols = clamp(b && b.cols || 6, 2, MAX_COLS);
+    o.rows = clamp(b && b.rows || 4, 1, MAX_ROWS);
+    var src = (b && b.pads) || [];
+    for (var k = 0; k < SLOTS; k++) o.pads[k] = parsePad(src[k]);
+    return o;
+  }
+  // v2形式（banks）にも、旧v1形式（pads直下）にも対応
+  function parseCfg(s) {
+    if (!s || typeof s !== 'object') return defaultCfg();
+    var banks = s.banks && s.banks.length ? s.banks : [{ name: 'ページ1', cols: s.cols, rows: s.rows, pads: s.pads }];
+    var c = { bank: 0, lock: !!s.lock, banks: banks.slice(0, MAX_BANKS).map(parseBank) };
+    c.bank = clamp(s.bank || 0, 0, c.banks.length - 1);
     return c;
   }
-  function clamp(n, lo, hi) { n = Number(n); if (isNaN(n)) n = lo; return Math.max(lo, Math.min(hi, n)); }
-
+  function serializeCfg() {
+    return {
+      v: 2, bank: cfg.bank, lock: cfg.lock,
+      banks: cfg.banks.map(function (b) {
+        return {
+          name: b.name, cols: b.cols, rows: b.rows,
+          pads: b.pads.map(function (p) {
+            return { name: p.name, color: p.color, kind: p.kind, builtin: p.builtin, fileKey: p.fileKey, fileName: p.fileName, vol: p.vol, pitch: p.pitch, mode: p.mode, start: p.start };
+          })
+        };
+      })
+    };
+  }
   function loadCfg() {
-    cfg = defaultCfg();
     try {
-      var raw = localStorage.getItem(LS_KEY);
-      if (!raw) return;
-      var s = JSON.parse(raw);
-      cfg.cols = clamp(s.cols, 2, MAX_COLS);
-      cfg.rows = clamp(s.rows, 1, MAX_ROWS);
-      (s.pads || []).forEach(function (p, i) {
-        if (i >= SLOTS || !p) return;
-        var d = defaultPad(i);
-        d.name = String(p.name || '').slice(0, 14);
-        d.color = COLORS.indexOf(p.color) >= 0 ? p.color : d.color;
-        d.kind = (p.kind === 'builtin' && BUILTIN[p.builtin]) ? 'builtin' : (p.kind === 'file' && p.fileKey ? 'file' : 'empty');
-        d.builtin = d.kind === 'builtin' ? p.builtin : '';
-        d.fileKey = d.kind === 'file' ? p.fileKey : '';
-        d.fileName = d.kind === 'file' ? String(p.fileName || '') : '';
-        d.vol = clamp(p.vol == null ? 100 : p.vol, 0, 150);
-        d.pitch = clamp(p.pitch || 0, -12, 12);
-        cfg.pads[i] = d;
-      });
+      var raw = localStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY_V1);
+      cfg = raw ? parseCfg(JSON.parse(raw)) : defaultCfg();
     } catch (e) { cfg = defaultCfg(); }
   }
   function saveCfg() {
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify({
-        cols: cfg.cols, rows: cfg.rows,
-        pads: cfg.pads.map(function (p) {
-          return { name: p.name, color: p.color, kind: p.kind, builtin: p.builtin, fileKey: p.fileKey, fileName: p.fileName, vol: p.vol, pitch: p.pitch };
-        })
-      }));
-    } catch (e) { log('設定を保存できません: ' + e.message); }
+    try { localStorage.setItem(LS_KEY, JSON.stringify(serializeCfg())); }
+    catch (e) { log('設定を保存できません: ' + e.message); }
+  }
+  function B() { return cfg.banks[cfg.bank]; }
+  function allFilePads() {
+    var out = [];
+    cfg.banks.forEach(function (b) { b.pads.forEach(function (p) { if (p.kind === 'file') out.push(p); }); });
+    return out;
+  }
+  function usedKeys() {
+    var m = {};
+    allFilePads().forEach(function (p) { m[p.fileKey] = true; });
+    return m;
   }
 
-  // 音声ファイル本体はIndexedDBに保存
+  // ---------- 音声ファイルの保存（IndexedDB） ----------
   var dbp = null;
   function db() {
     if (!dbp) {
@@ -394,15 +484,12 @@
   var masterVol = 0.8;
   var muted = false;
   var editing = false;
-  var editIdx = -1;
-  var active = [];          // 再生中のハンドル
-  var playCount = {};       // ボタンごとの再生中カウント
-  var rt = [];              // 実行時データ { blob, url, buf, bad }（保存しない）
-  for (var ri = 0; ri < SLOTS; ri++) rt.push({});
+  var editPad = null;       // 編集中のボタン
+  var active = [];          // 再生中のハンドル（全体）
+  var handles = {};         // ボタンid → 再生中ハンドルの配列
+  var R = {};               // fileKey → { blob, url, buf, bad }（保存しない）
 
   var hasSession = 'audioSession' in navigator;
-
-  function log(msg) { try { console.log(msg); } catch (e) { /* 無視 */ } }
 
   var hintTimer = null;
   function hint(msg) {
@@ -459,34 +546,59 @@
       fr.readAsArrayBuffer(blob);
     });
   }
+  function readDataUrl(blob) {
+    return new Promise(function (res, rej) {
+      var fr = new FileReader();
+      fr.onload = function () { res(fr.result); };
+      fr.onerror = function () { rej(fr.error); };
+      fr.readAsDataURL(blob);
+    });
+  }
   function decode(ab) {
     return new Promise(function (res, rej) {
       var p = ctx.decodeAudioData(ab, res, rej);
       if (p && p.catch) p.catch(rej);
     });
   }
-  function decodePad(i) {
-    var r = rt[i];
-    if (!ctx || !r.blob || r.buf) return Promise.resolve();
+  function decodeKey(key) {
+    var r = R[key];
+    if (!ctx || !r || !r.blob || r.buf) return Promise.resolve();
     return readBuf(r.blob).then(decode).then(function (buf) {
       r.buf = buf; r.bad = false;
     }).catch(function (e) {
       r.bad = true; log('デコード失敗: ' + (e && e.message));
     });
   }
-  function decodeAll() {
-    cfg.pads.forEach(function (p, i) { if (p.kind === 'file') decodePad(i); });
+  function decodeAll() { Object.keys(R).forEach(decodeKey); }
+  function setFile(key, blob) {
+    if (R[key] && R[key].url) { try { URL.revokeObjectURL(R[key].url); } catch (e) {} }
+    R[key] = { blob: blob, url: URL.createObjectURL(blob) };
   }
   function loadFiles() {
-    cfg.pads.forEach(function (p, i) {
-      if (p.kind !== 'file') return;
-      idbGet(p.fileKey).then(function (blob) {
-        if (!blob) { p.kind = 'empty'; p.fileKey = ''; saveCfg(); renderPads(); return; }
-        rt[i].blob = blob;
-        rt[i].url = URL.createObjectURL(blob);
-        if (ctx) decodePad(i);
+    var seen = {};
+    allFilePads().forEach(function (p) {
+      var key = p.fileKey;
+      if (seen[key]) return; seen[key] = true;
+      idbGet(key).then(function (blob) {
+        if (!blob) {
+          // 保存データが消えていた：該当ボタンを空にする
+          cfg.banks.forEach(function (b) { b.pads.forEach(function (q) { if (q.fileKey === key) { q.kind = 'empty'; q.fileKey = ''; q.fileName = ''; } }); });
+          saveCfg(); renderPads(); return;
+        }
+        setFile(key, blob);
+        if (ctx) decodeKey(key);
         renderPads();
       }).catch(function () { /* 保存領域が使えない場合は何もしない */ });
+    });
+  }
+  // 使われなくなったファイルを片付ける
+  function pruneFiles() {
+    var used = usedKeys();
+    Object.keys(R).forEach(function (k) {
+      if (used[k]) return;
+      idbDel(k);
+      if (R[k].url) { try { URL.revokeObjectURL(R[k].url); } catch (e) {} }
+      delete R[k];
     });
   }
 
@@ -541,42 +653,67 @@
   }
 
   // ---------- 再生 ----------
-  function srcOf(i) {
-    var p = cfg.pads[i], r = rt[i];
-    if (p.kind === 'builtin') { var s = BUILTIN[p.builtin]; return s ? { buf: s.buffer, url: s.url } : null; }
-    if (p.kind === 'file') return { buf: r.buf, url: r.url };
+  function srcOf(p) {
+    if (p.kind === 'builtin') { var s = BUILTIN[p.builtin]; return s ? { buf: s.buffer, url: s.url, key: '' } : null; }
+    if (p.kind === 'file') { var r = R[p.fileKey] || {}; return { buf: r.buf, url: r.url, key: p.fileKey, bad: r.bad }; }
     return null;
   }
-
-  function setPlaying(i, delta) {
-    playCount[i] = Math.max(0, (playCount[i] || 0) + delta);
-    var el = padsEl.querySelector('[data-i="' + i + '"]');
-    if (el) el.classList.toggle('playing', playCount[i] > 0);
+  function isPlaying(p) { return (handles[p.id] || []).length > 0; }
+  function markPlaying(p) {
+    var idx = B().pads.indexOf(p);
+    var el = idx >= 0 ? padsEl.querySelector('[data-i="' + idx + '"]') : null;
+    if (el) el.classList.toggle('playing', isPlaying(p));
   }
+  function stopPad(p) { (handles[p.id] || []).slice().forEach(function (h) { h.stop(); }); }
 
-  function play(i) {
+  function play(p) {
     ensureAudio();
     if (!ctx) return;
-    var p = cfg.pads[i], s = srcOf(i);
+    var s = srcOf(p);
     if (!s) return;
+    var mode = p.mode;
+    if (mode === 'hold' && engine !== 'webaudio') mode = 'toggle';
+    if ((mode === 'toggle' || mode === 'loop') && isPlaying(p)) { stopPad(p); return; }
+    if (mode === 'retrigger') stopPad(p);
     var rate = Math.pow(2, p.pitch / 12);
+    var loop = mode === 'loop';
+
+    function register(h) {
+      active.push(h);
+      (handles[p.id] = handles[p.id] || []).push(h);
+      markPlaying(p);
+    }
+    function unregister(h) {
+      var k = active.indexOf(h); if (k >= 0) active.splice(k, 1);
+      var list = handles[p.id] || [], j = list.indexOf(h); if (j >= 0) list.splice(j, 1);
+      markPlaying(p);
+    }
 
     if (engine === 'webaudio') {
-      if (!s.buf) { hint(rt[i].bad ? 'この音声ファイルは読み込めませんでした' : '読み込み中です。もう一度タップしてください'); return; }
+      if (!s.buf) { hint(s.bad ? 'この音声ファイルは読み込めませんでした' : '読み込み中です。もう一度タップしてください'); return; }
       var src = ctx.createBufferSource();
       src.buffer = s.buf;
       src.playbackRate.value = rate;
+      var off = Math.min(p.start, Math.max(0, s.buf.duration - 0.02));
+      if (loop) { src.loop = true; src.loopStart = off; src.loopEnd = s.buf.duration; }
       var g = ctx.createGain();
       g.gain.value = p.vol / 100;
       src.connect(g); g.connect(master);
-      var h = { stop: function () { try { src.stop(); } catch (e) {} } };
-      active.push(h);
-      setPlaying(i, 1);
-      src.onended = function () {
-        var k = active.indexOf(h); if (k >= 0) active.splice(k, 1);
-        setPlaying(i, -1);
+      var h = {
+        stop: function () {
+          // 急に止めるとプチ音が出るので、ごく短く音量を絞ってから止める
+          try {
+            var t = ctx.currentTime;
+            g.gain.cancelScheduledValues(t);
+            g.gain.setValueAtTime(g.gain.value, t);
+            g.gain.linearRampToValueAtTime(0, t + 0.03);
+            src.stop(t + 0.04);
+          } catch (e) { try { src.stop(); } catch (e2) {} }
+        }
       };
-      src.start(0);
+      register(h);
+      src.onended = function () { unregister(h); };
+      src.start(0, off);
     } else {
       if (!s.url) { hint('読み込み中です。もう一度タップしてください'); return; }
       var a = new Audio(s.url);
@@ -584,7 +721,9 @@
       a.muted = muted;
       a.volume = Math.min(1, p.vol / 100);
       a.playbackRate = rate;
+      a.loop = loop;
       a.preservesPitch = false; a.webkitPreservesPitch = false; a.mozPreservesPitch = false;
+      if (p.start > 0) a.addEventListener('loadedmetadata', function () { try { a.currentTime = p.start; } catch (e) {} });
       var done = false;
       var h2 = {
         stop: function () { try { a.pause(); a.currentTime = 0; } catch (e) {} finish(); },
@@ -592,11 +731,9 @@
       };
       function finish() {
         if (done) return; done = true;
-        var k = active.indexOf(h2); if (k >= 0) active.splice(k, 1);
-        setPlaying(i, -1);
+        unregister(h2);
       }
-      active.push(h2);
-      setPlaying(i, 1);
+      register(h2);
       a.onended = finish;
       var pr = a.play();
       if (pr && pr.catch) {
@@ -605,7 +742,18 @@
     }
   }
 
-  // ---------- 全画面 ----------
+  // 音が始まる位置を探す（先頭の無音を飛ばすため）
+  function findStart(buf) {
+    var thr = 0.02, n = buf.length, sr = buf.sampleRate, best = n;
+    for (var c = 0; c < buf.numberOfChannels; c++) {
+      var d = buf.getChannelData(c);
+      for (var i = 0; i < best; i++) { if (Math.abs(d[i]) > thr) { best = i; break; } }
+    }
+    if (best >= n) return 0;
+    return Math.max(0, best / sr - 0.005);
+  }
+
+  // ---------- 全画面・向き ----------
   var rootEl = document.documentElement;
   function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement; }
   function toggleFull() {
@@ -617,6 +765,7 @@
     }
     try {
       var r = fsElement() ? exit.call(document) : req.call(rootEl);
+      if (r && r.then) r.then(applyLock);
       if (r && r.catch) r.catch(function () { hint('全画面にできませんでした。ホーム画面に追加して開いてください'); });
     } catch (e) {
       hint('全画面にできませんでした。ホーム画面に追加して開いてください');
@@ -626,47 +775,150 @@
   document.addEventListener('fullscreenchange', syncFull);
   document.addEventListener('webkitfullscreenchange', syncFull);
 
+  function applyLock(showHint) {
+    var o = screen.orientation;
+    try {
+      if (!cfg.lock) { if (o && o.unlock) o.unlock(); return; }
+      if (!o || !o.lock) { if (showHint === true) hint('この端末では向きを固定できません。コントロールセンターの回転ロックを使ってください'); return; }
+      var r = o.lock('landscape');
+      if (r && r.catch) r.catch(function () { if (showHint === true) hint('この端末では向きを固定できません。コントロールセンターの回転ロックを使ってください'); });
+    } catch (e) {
+      if (showHint === true) hint('この端末では向きを固定できません。コントロールセンターの回転ロックを使ってください');
+    }
+  }
+
   // ---------- ボタン表示 ----------
   var padsEl = $('pads');
   function subText(p) {
     if (p.kind === 'empty') return editing ? 'タップして設定' : '空';
     var parts = [p.kind === 'builtin' ? BUILTIN[p.builtin].sub : 'ファイル'];
+    if (MODES[p.mode]) parts.push(MODES[p.mode]);
     if (p.pitch) parts.push((p.pitch > 0 ? '+' : '') + p.pitch + '半音');
     if (p.vol !== 100) parts.push(p.vol + '%');
     return parts.join(' ・ ');
   }
   function renderPads() {
-    padsEl.style.gridTemplateColumns = 'repeat(' + cfg.cols + ', 1fr)';
-    padsEl.style.gridTemplateRows = 'repeat(' + cfg.rows + ', 1fr)';
-    var html = '';
-    var n = cfg.cols * cfg.rows;
-    for (var i = 0; i < n; i++) {
-      var p = cfg.pads[i];
-      var name = p.name || (p.kind === 'empty' ? '（空）' : '無題');
-      html += '<button type="button" class="pad' + (p.kind === 'empty' ? ' empty' : '') + (playCount[i] > 0 ? ' playing' : '') +
+    var bank = B();
+    padsEl.style.gridTemplateColumns = 'repeat(' + bank.cols + ', 1fr)';
+    padsEl.style.gridTemplateRows = 'repeat(' + bank.rows + ', 1fr)';
+    var n = bank.cols * bank.rows, html = '', i;
+    for (i = 0; i < n; i++) {
+      var p = bank.pads[i];
+      html += '<button type="button" class="pad' + (p.kind === 'empty' ? ' empty' : '') + (isPlaying(p) ? ' playing' : '') +
         '" data-i="' + i + '" style="border-left-color:' + p.color + '"><b></b><small></small></button>';
     }
     padsEl.innerHTML = html;
-    for (var j = 0; j < n; j++) {
-      var q = cfg.pads[j], el = padsEl.children[j];
+    for (i = 0; i < n; i++) {
+      var q = bank.pads[i], el = padsEl.children[i];
       el.firstChild.textContent = q.name || (q.kind === 'empty' ? '（空）' : '無題');
       el.lastChild.textContent = subText(q);
     }
-    $('colsOut').textContent = cfg.cols;
-    $('rowsOut').textContent = cfg.rows;
+    $('colsOut').textContent = bank.cols;
+    $('rowsOut').textContent = bank.rows;
   }
 
-  padsEl.addEventListener('pointerdown', function (e) {
-    var b = e.target.closest && e.target.closest('.pad');
-    if (!b || editing || engine !== 'webaudio') return;
-    play(Number(b.getAttribute('data-i')));
+  // ---------- ページ（組）の切り替え ----------
+  var banksEl = $('banks');
+  function renderBanks() {
+    var html = '';
+    cfg.banks.forEach(function (b, i) {
+      html += '<button type="button" role="tab" class="' + (i === cfg.bank ? 'sel' : '') + '" data-b="' + i + '" aria-selected="' + (i === cfg.bank) + '">' + escapeHtml(b.name) + '</button>';
+    });
+    if (cfg.banks.length < MAX_BANKS) html += '<button type="button" class="tool" data-act="add">＋ ページ追加</button>';
+    html += '<button type="button" class="tool" data-act="rename">名前を変える</button>';
+    if (cfg.banks.length > 1) html += '<button type="button" class="tool danger" data-act="del">このページを削除</button>';
+    banksEl.innerHTML = html;
+  }
+  function selectBank(i) {
+    cfg.bank = clamp(i, 0, cfg.banks.length - 1);
+    saveCfg(); renderBanks(); renderPads();
+  }
+  banksEl.addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('button');
+    if (!t) return;
+    var act = t.getAttribute('data-act');
+    if (!act) { selectBank(Number(t.getAttribute('data-b'))); return; }
+    if (act === 'add') {
+      cfg.banks.push(defaultBank('ページ' + (cfg.banks.length + 1), false));
+      selectBank(cfg.banks.length - 1);
+    } else if (act === 'rename') {
+      var nn = prompt('ページの名前', B().name);
+      if (nn != null && nn.trim()) { B().name = nn.trim().slice(0, 12); saveCfg(); renderBanks(); }
+    } else if (act === 'del') {
+      if (!confirm('「' + B().name + '」を削除します。このページの割り当ては消えます。よろしいですか？')) return;
+      B().pads.forEach(function (p) { stopPad(p); });
+      cfg.banks.splice(cfg.bank, 1);
+      cfg.bank = Math.min(cfg.bank, cfg.banks.length - 1);
+      saveCfg(); pruneFiles(); renderBanks(); renderPads();
+    }
   });
-  padsEl.addEventListener('click', function (e) {
+
+  // ---------- ボタンの操作（鳴らす／編集／ドラッグで入れ替え） ----------
+  var holds = {};           // pointerId → ボタン（「押している間だけ」用）
+  var drag = null;
+  var suppressClick = false;
+  function padOf(e) {
     var b = e.target.closest && e.target.closest('.pad');
-    if (!b) return;
-    var i = Number(b.getAttribute('data-i'));
-    if (editing) openEditor(i);
-    else if (engine === 'audio') play(i);
+    return b ? { el: b, i: Number(b.getAttribute('data-i')) } : null;
+  }
+  padsEl.addEventListener('pointerdown', function (e) {
+    var h = padOf(e);
+    if (!h) return;
+    if (editing) {
+      drag = { from: h.i, x: e.clientX, y: e.clientY, moved: false, el: h.el, id: e.pointerId, over: null };
+      try { h.el.setPointerCapture(e.pointerId); } catch (er) {}
+      return;
+    }
+    if (engine !== 'webaudio') return;
+    var p = B().pads[h.i];
+    if (p.mode === 'hold') holds[e.pointerId] = p;
+    play(p);
+  });
+  padsEl.addEventListener('pointermove', function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (!drag.moved && Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 14) {
+      drag.moved = true; drag.el.classList.add('dragging');
+    }
+    if (!drag.moved) return;
+    var t = document.elementFromPoint(e.clientX, e.clientY);
+    var o = t && t.closest ? t.closest('.pad') : null;
+    if (drag.over && drag.over !== o) drag.over.classList.remove('drop');
+    drag.over = o && o !== drag.el ? o : null;
+    if (drag.over) drag.over.classList.add('drop');
+  });
+  function endDrag(e, cancel) {
+    if (!drag || e.pointerId !== drag.id) return;
+    var d = drag; drag = null;
+    d.el.classList.remove('dragging');
+    if (d.over) d.over.classList.remove('drop');
+    if (d.moved) {
+      suppressClick = true;
+      setTimeout(function () { suppressClick = false; }, 350);
+      if (!cancel && d.over) {
+        var to = Number(d.over.getAttribute('data-i')), pads = B().pads;
+        var tmp = pads[d.from]; pads[d.from] = pads[to]; pads[to] = tmp;
+        saveCfg(); renderPads();
+        hint('入れ替えました');
+      }
+    }
+  }
+  padsEl.addEventListener('pointerup', function (e) { endDrag(e, false); });
+  padsEl.addEventListener('pointercancel', function (e) { endDrag(e, true); });
+  // 「押している間だけ」：指がボタンから外れて離れた場合も止める
+  function releaseHold(e) {
+    var p = holds[e.pointerId];
+    if (!p) return;
+    delete holds[e.pointerId];
+    stopPad(p);
+  }
+  document.addEventListener('pointerup', releaseHold);
+  document.addEventListener('pointercancel', releaseHold);
+
+  padsEl.addEventListener('click', function (e) {
+    var h = padOf(e);
+    if (!h || suppressClick) return;
+    if (editing) openEditor(B().pads[h.i]);
+    else if (engine === 'audio') play(B().pads[h.i]);
   });
 
   // ---------- 編集モード ----------
@@ -677,7 +929,7 @@
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
     b.textContent = on ? '✎ 編集中' : '✎ 編集';
-    if (on) hint('編集したいボタンをタップしてください');
+    if (on) hint('編集したいボタンをタップ／ドラッグで入れ替え');
     renderPads();
   }
 
@@ -692,117 +944,192 @@
     edColors.appendChild(b);
   });
 
+  function padBuf(p) { var s = srcOf(p); return s && s.buf; }
   function fillSource() {
-    var p = cfg.pads[editIdx];
-    var sel = $('edSource');
+    var p = editPad, sel = $('edSource');
     var opts = '<option value="empty">（空）</option>';
     BUILTIN_ORDER.forEach(function (id) { opts += '<option value="b:' + id + '">内蔵：' + BUILTIN[id].name + '（' + BUILTIN[id].sub + '）</option>'; });
     if (p.kind === 'file') opts += '<option value="file">ファイル：' + escapeHtml(p.fileName || '音声') + '</option>';
     sel.innerHTML = opts;
     sel.value = p.kind === 'builtin' ? 'b:' + p.builtin : (p.kind === 'file' ? 'file' : 'empty');
   }
-  function escapeHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-
   function syncEditor() {
-    var p = cfg.pads[editIdx];
-    $('edTitle').textContent = 'ボタン ' + (editIdx + 1) + ' の編集';
+    var p = editPad;
+    if (!p) return;
+    $('edTitle').textContent = 'ボタン ' + (B().pads.indexOf(p) + 1) + ' の編集';
     $('edName').value = p.name;
     fillSource();
+    $('edMode').value = p.mode;
     $('edVol').value = p.vol; $('edVolOut').textContent = p.vol;
     $('edPitch').value = p.pitch; $('edPitchOut').textContent = (p.pitch > 0 ? '+' : '') + p.pitch;
+    var buf = padBuf(p);
+    var max = buf ? Math.min(10, Math.max(0.5, buf.duration)) : 5;
+    $('edStart').max = max;
+    $('edStart').value = Math.min(p.start, max); $('edStartOut').textContent = Number(p.start).toFixed(2);
     Array.prototype.forEach.call(edColors.children, function (b) { b.classList.toggle('sel', b.getAttribute('data-c') === p.color); });
-    var dur = rt[editIdx].buf ? '（' + rt[editIdx].buf.duration.toFixed(1) + '秒）' : '';
     $('edFileInfo').textContent = p.kind === 'file'
-      ? '割り当て中：' + (p.fileName || '音声') + dur
+      ? '割り当て中：' + (p.fileName || '音声') + (buf ? '（' + buf.duration.toFixed(1) + '秒）' : '')
       : '「ファイル」アプリやダウンロードから、MP3・M4A・WAVを選べます。選ぶと名前もファイル名になります（あとで変更できます）。';
   }
-  function openEditor(i) {
-    editIdx = i;
+  function openEditor(p) {
+    editPad = p;
     syncEditor();
     document.body.classList.add('edit-open');
   }
   function closePanels() {
     document.body.classList.remove('open');
     document.body.classList.remove('edit-open');
-    editIdx = -1;
+    editPad = null;
     renderPads();
   }
   function commitEdit() { saveCfg(); renderPads(); }
 
-  $('edName').addEventListener('input', function (e) {
-    cfg.pads[editIdx].name = e.target.value.slice(0, 14);
-    commitEdit();
-  });
+  $('edName').addEventListener('input', function (e) { if (!editPad) return; editPad.name = e.target.value.slice(0, 14); commitEdit(); });
+  $('edMode').addEventListener('change', function (e) { if (!editPad) return; editPad.mode = e.target.value; commitEdit(); });
   $('edVol').addEventListener('input', function (e) {
-    cfg.pads[editIdx].vol = Number(e.target.value);
-    $('edVolOut').textContent = e.target.value;
-    commitEdit();
+    if (!editPad) return;
+    editPad.vol = Number(e.target.value); $('edVolOut').textContent = e.target.value; commitEdit();
   });
   $('edPitch').addEventListener('input', function (e) {
+    if (!editPad) return;
     var v = Number(e.target.value);
-    cfg.pads[editIdx].pitch = v;
-    $('edPitchOut').textContent = (v > 0 ? '+' : '') + v;
-    commitEdit();
+    editPad.pitch = v; $('edPitchOut').textContent = (v > 0 ? '+' : '') + v; commitEdit();
   });
-  $('edVolReset').addEventListener('click', function () { cfg.pads[editIdx].vol = 100; commitEdit(); syncEditor(); });
-  $('edPitchReset').addEventListener('click', function () { cfg.pads[editIdx].pitch = 0; commitEdit(); syncEditor(); });
+  $('edStart').addEventListener('input', function (e) {
+    if (!editPad) return;
+    editPad.start = Number(e.target.value); $('edStartOut').textContent = editPad.start.toFixed(2); saveCfg();
+  });
+  $('edStartReset').addEventListener('click', function () { if (!editPad) return; editPad.start = 0; saveCfg(); syncEditor(); });
+  $('edAuto').addEventListener('click', function () {
+    if (!editPad) return;
+    var buf = padBuf(editPad);
+    if (!buf) { hint('先に音を割り当ててください（読み込み中の場合は少し待ってください）'); return; }
+    editPad.start = Math.min(findStart(buf), 10);
+    saveCfg(); syncEditor();
+    hint(editPad.start > 0 ? '頭出しを ' + editPad.start.toFixed(2) + ' 秒に合わせました' : '先頭に無音は見つかりませんでした');
+  });
+  $('edVolReset').addEventListener('click', function () { if (!editPad) return; editPad.vol = 100; commitEdit(); syncEditor(); });
+  $('edPitchReset').addEventListener('click', function () { if (!editPad) return; editPad.pitch = 0; commitEdit(); syncEditor(); });
   edColors.addEventListener('click', function (e) {
     var c = e.target.getAttribute && e.target.getAttribute('data-c');
-    if (!c) return;
-    cfg.pads[editIdx].color = c; commitEdit(); syncEditor();
+    if (!c || !editPad) return;
+    editPad.color = c; commitEdit(); syncEditor();
   });
 
-  function dropFile(i) {
-    var p = cfg.pads[i], r = rt[i];
-    if (p.fileKey) idbDel(p.fileKey);
-    if (r.url) { try { URL.revokeObjectURL(r.url); } catch (e) {} }
-    rt[i] = {};
+  function dropFile(p) {
+    stopPad(p);
     p.fileKey = ''; p.fileName = '';
   }
   $('edSource').addEventListener('change', function (e) {
-    var v = e.target.value, p = cfg.pads[editIdx];
-    if (v === 'file') return;
-    dropFile(editIdx);
+    var v = e.target.value, p = editPad;
+    if (!p || v === 'file') return;
+    dropFile(p);
     if (v === 'empty') { p.kind = 'empty'; p.builtin = ''; }
     else {
-      p.kind = 'builtin'; p.builtin = v.slice(2);
+      p.kind = 'builtin'; p.builtin = v.slice(2); p.start = 0;
       if (!p.name) p.name = BUILTIN[p.builtin].name;
     }
-    commitEdit(); syncEditor();
+    commitEdit(); pruneFiles(); syncEditor();
   });
   $('edClear').addEventListener('click', function () {
-    var p = cfg.pads[editIdx];
-    dropFile(editIdx);
-    p.kind = 'empty'; p.builtin = ''; p.name = ''; p.vol = 100; p.pitch = 0;
-    commitEdit(); syncEditor();
+    var p = editPad; if (!p) return;
+    dropFile(p);
+    p.kind = 'empty'; p.builtin = ''; p.name = ''; p.vol = 100; p.pitch = 0; p.mode = 'once'; p.start = 0;
+    commitEdit(); pruneFiles(); syncEditor();
   });
-  $('edTry').addEventListener('click', function () { play(editIdx); });
+  $('edTry').addEventListener('click', function () { if (editPad) play(editPad); });
   $('edPick').addEventListener('click', function () { $('fileInput').click(); });
 
   $('fileInput').addEventListener('change', function (e) {
     var f = e.target.files && e.target.files[0];
     e.target.value = '';
-    if (!f || editIdx < 0) return;
-    var i = editIdx, p = cfg.pads[i];
+    var p = editPad;
+    if (!f || !p) return;
     ensureAudio();
-    var key = 'f' + Date.now() + '-' + i;
-    var old = { fileKey: p.fileKey, url: rt[i].url };
-    if (old.fileKey) idbDel(old.fileKey);
-    if (old.url) { try { URL.revokeObjectURL(old.url); } catch (er) {} }
-    rt[i] = { blob: f, url: URL.createObjectURL(f) };
-    p.kind = 'file'; p.builtin = ''; p.fileKey = key; p.fileName = f.name;
+    stopPad(p);
+    var key = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    setFile(key, f);
+    p.kind = 'file'; p.builtin = ''; p.fileKey = key; p.fileName = f.name; p.start = 0;
     p.name = f.name.replace(/\.[^.]+$/, '').slice(0, 14);
     idbPut(key, f).catch(function () { hint('この端末では音声ファイルを保存できません（今回だけ使えます）'); });
-    commitEdit(); syncEditor();
-    decodePad(i).then(function () {
-      if (rt[i].bad) {
+    commitEdit(); pruneFiles(); syncEditor();
+    decodeKey(key).then(function () {
+      var r = R[key];
+      if (r && r.bad) {
         hint('この音声ファイルは読み込めませんでした');
-        dropFile(i); p.kind = 'empty'; p.name = ''; commitEdit();
-      } else if (rt[i].buf && rt[i].buf.duration > 30) {
-        hint('長い音声です（' + Math.round(rt[i].buf.duration) + '秒）。効果音は短めがおすすめです');
+        dropFile(p); p.kind = 'empty'; p.name = ''; commitEdit(); pruneFiles();
+      } else if (r && r.buf && r.buf.duration > 30) {
+        hint('長い音声です（' + Math.round(r.buf.duration) + '秒）。「もう一度押すと止まる」にしておくと便利です');
       }
-      if (editIdx === i) syncEditor();
+      if (editPad === p) syncEditor();
     });
+  });
+
+  // ---------- バックアップ ----------
+  function blobOf(key) {
+    if (R[key] && R[key].blob) return Promise.resolve(R[key].blob);
+    return idbGet(key).catch(function () { return null; });
+  }
+  function stamp() {
+    var d = new Date();
+    function z(n) { return ('0' + n).slice(-2); }
+    return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes());
+  }
+  function exportBackup() {
+    hint('書き出し中です…');
+    var files = {}, names = {};
+    allFilePads().forEach(function (p) { names[p.fileKey] = p.fileName; });
+    var keys = Object.keys(names);
+    Promise.all(keys.map(function (k) {
+      return blobOf(k).then(function (b) {
+        if (!b) return;
+        return readDataUrl(b).then(function (d) { files[k] = { name: names[k], data: d }; });
+      });
+    })).then(function () {
+      var json = JSON.stringify({ app: 'mai-sound-studio', v: 2, cfg: serializeCfg(), files: files });
+      var blob = new Blob([json], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'mai-sound-studio-backup-' + stamp() + '.json';
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+      hint('書き出しました（' + keys.length + '個の音声を含む）。「ファイル」アプリを確認してください');
+    }).catch(function (e) { hint('書き出しに失敗しました: ' + (e && e.message)); });
+  }
+  function importBackup(file) {
+    var fr = new FileReader();
+    fr.onerror = function () { hint('ファイルを読み込めませんでした'); };
+    fr.onload = function () {
+      var data;
+      try { data = JSON.parse(fr.result); } catch (e) { hint('バックアップのファイルではありません'); return; }
+      if (!data || data.app !== 'mai-sound-studio' || !data.cfg) { hint('このアプリのバックアップではありません'); return; }
+      if (!confirm('バックアップを読み込みます。今の設定と割り当ては、すべて置き換わります。よろしいですか？')) return;
+      var next = parseCfg(data.cfg);
+      var keys = Object.keys(data.files || {});
+      Promise.all(keys.map(function (k) {
+        var f = data.files[k];
+        return fetch(f.data).then(function (r) { return r.blob(); }).then(function (blob) {
+          return idbPut(k, blob).catch(function () {}).then(function () { return [k, blob]; });
+        });
+      })).then(function (pairs) {
+        // 今の再生を止め、設定を差し替える
+        active.slice().forEach(function (h) { h.stop(); });
+        pairs.forEach(function (pr) { setFile(pr[0], pr[1]); });
+        cfg = next;
+        saveCfg(); pruneFiles();
+        if (ctx) decodeAll();
+        closePanels(); renderBanks(); renderPads(); $('lockLand').checked = cfg.lock;
+        hint('読み込みました');
+      }).catch(function (e) { hint('読み込みに失敗しました: ' + (e && e.message)); });
+    };
+    fr.readAsText(file);
+  }
+  $('bkExport').addEventListener('click', exportBackup);
+  $('bkImport').addEventListener('click', function () { $('bkFile').click(); });
+  $('bkFile').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (f) importBackup(f);
   });
 
   // ---------- 設定パネル ----------
@@ -813,18 +1140,22 @@
   Array.prototype.forEach.call(document.querySelectorAll('[data-grid]'), function (b) {
     b.addEventListener('click', function () {
       var k = b.getAttribute('data-grid'), d = Number(b.getAttribute('data-d'));
-      if (k === 'cols') cfg.cols = clamp(cfg.cols + d, 2, MAX_COLS);
-      else cfg.rows = clamp(cfg.rows + d, 1, MAX_ROWS);
+      if (k === 'cols') B().cols = clamp(B().cols + d, 2, MAX_COLS);
+      else B().rows = clamp(B().rows + d, 1, MAX_ROWS);
       saveCfg(); renderPads();
     });
   });
+  $('lockLand').addEventListener('change', function (e) {
+    cfg.lock = e.target.checked; saveCfg(); applyLock(true);
+  });
   $('goEdit').addEventListener('click', function () { closePanels(); setEditing(true); });
   $('resetAll').addEventListener('click', function () {
-    if (!confirm('割り当てたMP3・名前・音量・ピッチをすべて消して、初期状態に戻します。よろしいですか？')) return;
-    cfg.pads.forEach(function (p, i) { if (p.fileKey) idbDel(p.fileKey); if (rt[i].url) { try { URL.revokeObjectURL(rt[i].url); } catch (e) {} } });
-    try { localStorage.removeItem(LS_KEY); } catch (e) { /* 無視 */ }
-    for (var k = 0; k < SLOTS; k++) rt[k] = {};
-    loadCfg(); closePanels(); setEditing(false);
+    if (!confirm('全ページの割り当て・名前・音量・ピッチをすべて消して、初期状態に戻します。よろしいですか？')) return;
+    active.slice().forEach(function (h) { h.stop(); });
+    try { localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_KEY_V1); } catch (e) { /* 無視 */ }
+    cfg = defaultCfg();
+    pruneFiles();
+    closePanels(); setEditing(false); renderBanks(); renderPads(); $('lockLand').checked = cfg.lock;
     hint('初期状態に戻しました');
   });
 
@@ -856,8 +1187,11 @@
 
   // ---------- 起動 ----------
   loadCfg();
+  $('lockLand').checked = cfg.lock;
+  renderBanks();
   renderPads();
   loadFiles();
+  applyLock(false);
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* 無視 */ }
   refresh();
 })();
