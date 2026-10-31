@@ -31,11 +31,14 @@
     -webkit-touch-callout: none;
     touch-action: manipulation;
   }
-  button {
+  button, select, input[type=text] {
     font: inherit; color: var(--text); background: var(--surface);
     border: 1px solid var(--line); border-radius: 10px;
-    min-height: 48px; padding: 0 16px; cursor: pointer;
+    min-height: 48px; padding: 0 16px;
   }
+  button { cursor: pointer; }
+  input[type=text] { width: 100%; -webkit-user-select: text; user-select: text; }
+  select { width: 100%; }
   button:focus-visible, label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ---- 画面全体：上のバー + 効果音パッド ---- */
@@ -48,43 +51,42 @@
   #bar button { min-height: 52px; min-width: 52px; font-size: 16px; white-space: nowrap; }
   #mute { font-weight: 700; color: var(--ok); border-color: var(--ok); min-width: 132px; }
   #mute.muted { background: var(--bad); border-color: var(--bad); color: #fff; }
-  #stop { color: var(--bad); border-color: var(--bad); font-weight: 700; }
+  #editBtn.on { background: var(--accent); border-color: var(--accent); color: #1a1205; font-weight: 700; }
 
-  .pads {
-    flex: 1; min-height: 0; padding: 12px;
-    display: grid; gap: 12px;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    grid-auto-rows: 1fr;
-  }
+  .pads { flex: 1; min-height: 0; padding: 10px; display: grid; gap: 10px; }
   .pad {
-    padding: 16px; text-align: left; border-radius: 16px;
+    min-width: 0; min-height: 0; padding: 10px 12px; text-align: left; border-radius: 14px;
     display: flex; flex-direction: column; justify-content: space-between;
-    border-left: 8px solid var(--accent);
+    border-left: 7px solid var(--accent);
     transition: background-color .05s;
   }
-  .pad b { font-size: 24px; }
-  .pad small { color: var(--muted); font-size: 14px; }
+  .pad b { font-size: 18px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+  .pad small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+  .pad.empty { opacity: .45; border-style: dashed; }
   .pad.playing { background: #3a2c10; border-color: var(--accent); }
   .pad.playing small { color: var(--accent); }
+  body.editing .pad { border-top: 1px dashed var(--accent); border-right: 1px dashed var(--accent); border-bottom: 1px dashed var(--accent); }
+  body.editing .pad.empty { opacity: .8; }
 
-  #hint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 90vw; text-align: center; }
+  #hint { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 90vw; text-align: center; z-index: 5; }
   #hint.show { opacity: 1; }
 
-  /* ---- 横から出る設定パネル ---- */
+  /* ---- 横から出るパネル（設定／ボタン編集） ---- */
   #backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .2s; }
-  #drawer {
-    position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 90vw);
+  body.open #backdrop, body.edit-open #backdrop { opacity: 1; pointer-events: auto; }
+  aside.panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 92vw);
     background: var(--bg); border-left: 1px solid var(--line);
     transform: translateX(100%); transition: transform .22s ease;
     overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: calc(env(safe-area-inset-top) + 12px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 24px) 16px;
   }
   body.open #drawer { transform: none; }
-  body.open #backdrop { opacity: 1; pointer-events: auto; }
-  .drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-  .drawer-head h1 { font-size: 18px; margin: 0; }
+  body.edit-open #editor { transform: none; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .panel-head h1 { font-size: 18px; margin: 0; }
   .sub { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
-  #drawer section { border-top: 1px solid var(--line); padding: 14px 0; }
+  aside.panel section { border-top: 1px solid var(--line); padding: 14px 0; }
   h2 { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 8px; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; max-width: 100%; }
   .seg label { display: block; }
@@ -94,6 +96,20 @@
   .seg input:checked + span { background: var(--accent); color: #1a1205; font-weight: 700; }
   .note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
   input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); }
+  .btn-wide { width: 100%; }
+  .btn-accent { background: var(--accent); border-color: var(--accent); color: #1a1205; font-weight: 700; }
+  .btn-danger { color: var(--bad); border-color: var(--bad); }
+  .stepper { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .stepper .lbl { width: 2.5em; color: var(--muted); }
+  .stepper button { min-width: 52px; font-size: 20px; padding: 0; }
+  .stepper output { min-width: 2em; text-align: center; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+  .swatches button { width: 48px; min-width: 48px; padding: 0; border-radius: 50%; border: 3px solid transparent; }
+  .swatches button.sel { border-color: var(--text); }
+  .val { color: var(--text); font-variant-numeric: tabular-nums; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 > * { flex: 1; }
+  #fileInput { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
   dt { color: var(--muted); }
@@ -108,21 +124,35 @@
   <div id="bar">
     <div class="title">MAI SOUND STUDIO</div>
     <button id="mute" type="button" aria-pressed="false">🔊 音あり</button>
-    <button id="stop" type="button">■ 全音停止</button>
+    <button id="editBtn" type="button" aria-pressed="false">✎ 編集</button>
     <button id="full" type="button" aria-label="全画面">⛶ 全画面</button>
     <button id="menu" type="button" aria-label="設定を開く">⚙ 設定</button>
   </div>
   <div class="pads" id="pads"></div>
 </div>
 <div id="hint"></div>
-
 <div id="backdrop"></div>
-<aside id="drawer" aria-label="設定">
-  <div class="drawer-head">
+
+<!-- 設定パネル -->
+<aside id="drawer" class="panel" aria-label="設定">
+  <div class="panel-head">
     <h1>設定</h1>
     <button id="close" type="button">閉じる</button>
   </div>
   <p class="sub">YouTubeのBGMを止めずに効果音を重ねられるかを、iPad実機で確かめます。録音（マイク）は使いません。</p>
+
+  <section>
+    <h2>ボタンの割り当て</h2>
+    <button id="goEdit" type="button" class="btn-wide btn-accent">✎ ボタンを編集する（MP3の割り当て・名前・音量・ピッチ）</button>
+    <p class="note">押したあと、編集したいボタンをタップしてください。終わったら上の「編集中」をもう一度押すと通常モードに戻ります。</p>
+  </section>
+
+  <section>
+    <h2>ボタンの数（列 × 行）</h2>
+    <div class="stepper"><span class="lbl">列</span><button type="button" data-grid="cols" data-d="-1">−</button><output id="colsOut">6</output><button type="button" data-grid="cols" data-d="1">＋</button></div>
+    <div class="stepper"><span class="lbl">行</span><button type="button" data-grid="rows" data-d="-1">−</button><output id="rowsOut">4</output><button type="button" data-grid="rows" data-d="1">＋</button></div>
+    <p class="note">列は2〜8、行は1〜6。減らしても、隠れたボタンの設定は残ります。</p>
+  </section>
 
   <section>
     <h2>音声セッション（他の音との付き合い方）</h2>
@@ -140,7 +170,7 @@
       <label><input type="radio" name="engine" value="webaudio" checked><span>Web Audio</span></label>
       <label><input type="radio" name="engine" value="audio"><span>audio要素</span></label>
     </div>
-    <p class="note">Web Audio：音を先に読み込んで即座に鳴らす。速く、連打・同時押しに強い（おすすめ） ／ audio要素：ふつうの音声プレーヤー方式（比較用）</p>
+    <p class="note">Web Audio：音を先に読み込んで即座に鳴らす。速く、連打・同時押しに強い（おすすめ） ／ audio要素：ふつうの音声プレーヤー方式（比較用。ボタンごとの音量は効きません）</p>
   </section>
 
   <section>
@@ -164,6 +194,58 @@
     <h2>状態</h2>
     <dl id="status"></dl>
   </section>
+
+  <section>
+    <h2>初期化</h2>
+    <button id="resetAll" type="button" class="btn-wide btn-danger">全ボタンを初期状態に戻す</button>
+    <p class="note">割り当てたMP3・名前・音量・ピッチを消して、最初の5音に戻します。</p>
+  </section>
+</aside>
+
+<!-- ボタン編集パネル -->
+<aside id="editor" class="panel" aria-label="ボタン編集">
+  <div class="panel-head">
+    <h1 id="edTitle">ボタン編集</h1>
+    <button id="edClose" type="button">閉じる</button>
+  </div>
+
+  <section>
+    <h2>名前</h2>
+    <input id="edName" type="text" maxlength="14" autocomplete="off" aria-label="ボタンの名前">
+  </section>
+
+  <section>
+    <h2>音</h2>
+    <select id="edSource" aria-label="音の種類"></select>
+    <div class="row2" style="margin-top:10px">
+      <button type="button" id="edPick" class="btn-wide btn-accent">MP3などを選ぶ</button>
+      <button type="button" id="edTry" class="btn-wide">▶ 試聴</button>
+    </div>
+    <input id="fileInput" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac">
+    <p class="note" id="edFileInfo">「ファイル」アプリやダウンロードから、MP3・M4A・WAVを選べます。選ぶと名前もファイル名になります（あとで変更できます）。</p>
+  </section>
+
+  <section>
+    <h2>音量：<span id="edVolOut" class="val">100</span>%</h2>
+    <input id="edVol" type="range" min="0" max="150" step="5" value="100" aria-label="ボタンの音量">
+    <p class="note">100%が元の大きさ。150%まで上げられますが、上げすぎると音が割れます。</p>
+  </section>
+
+  <section>
+    <h2>ピッチ：<span id="edPitchOut" class="val">0</span> 半音</h2>
+    <input id="edPitch" type="range" min="-12" max="12" step="1" value="0" aria-label="ボタンのピッチ">
+    <div class="row2"><button type="button" id="edPitchReset">0に戻す</button><button type="button" id="edVolReset">音量を100%に戻す</button></div>
+    <p class="note">＋で高く、−で低くなります。±12で1オクターブ。音の長さも一緒に変わります（高いと短く、低いと長く）。</p>
+  </section>
+
+  <section>
+    <h2>色</h2>
+    <div class="swatches" id="edColors"></div>
+  </section>
+
+  <section>
+    <button type="button" id="edClear" class="btn-wide btn-danger">このボタンを空にする</button>
+  </section>
 </aside>
 
 <script>
@@ -171,9 +253,11 @@
   'use strict';
 
   var SR = 44100;
+  var MAX_COLS = 8, MAX_ROWS = 6, SLOTS = MAX_COLS * MAX_ROWS;
+  var COLORS = ['#f0a431', '#ef6b5f', '#4cc38a', '#6aa8ff', '#c08bff', '#ff8fc7', '#4fd1d9', '#b8c0cc'];
   var $ = function (id) { return document.getElementById(id); };
 
-  // ---------- 効果音の生成（外部ファイル不要） ----------
+  // ---------- 内蔵の効果音（外部ファイル不要） ----------
   function gen(seconds, fn) {
     var n = Math.floor(SR * seconds);
     var d = new Float32Array(n);
@@ -188,26 +272,27 @@
   var TAU = Math.PI * 2;
   var atk = function (t) { return Math.min(1, t / 0.005); };
 
-  var SOUNDS = [
-    { id: 'pin', name: 'ピン', sub: '0.4秒', color: '#f0a431',
+  var BUILTIN = {
+    pin: { id: 'pin', name: 'ピン', sub: '0.4秒', color: '#f0a431',
       data: gen(0.4, function (t) { return atk(t) * Math.exp(-9 * t) * 0.5 * Math.sin(TAU * 1320 * t); }) },
-    { id: 'buzz', name: 'ブザー', sub: '0.6秒', color: '#ef6b5f',
+    buzz: { id: 'buzz', name: 'ブザー', sub: '0.6秒', color: '#ef6b5f',
       data: gen(0.6, function (t) { return atk(t) * Math.exp(-2 * t) * 0.22 * (Math.sin(TAU * 220 * t) > 0 ? 1 : -1); }) },
-    { id: 'chime', name: 'チャイム', sub: '1.2秒', color: '#4cc38a',
+    chime: { id: 'chime', name: 'チャイム', sub: '1.2秒', color: '#4cc38a',
       data: gen(1.2, function (t) {
         var a = atk(t) * Math.exp(-4 * t) * (Math.sin(TAU * 880 * t) + 0.5 * Math.sin(TAU * 1320 * t));
         var t2 = t - 0.25;
         var b = t2 > 0 ? atk(t2) * Math.exp(-4 * t2) * Math.sin(TAU * 1760 * t2) : 0;
         return 0.28 * (a + b);
       }) },
-    { id: 'clap', name: '拍手風', sub: '0.8秒', color: '#6aa8ff',
+    clap: { id: 'clap', name: '拍手風', sub: '0.8秒', color: '#6aa8ff',
       data: gen(0.8, function (t) { return (Math.random() * 2 - 1) * Math.exp(-(t % 0.07) * 60) * Math.exp(-2 * t) * 0.7; }) },
-    { id: 'long', name: 'ロングトーン', sub: '5秒', color: '#c08bff',
+    long: { id: 'long', name: 'ロングトーン', sub: '5秒', color: '#c08bff',
       data: gen(5, function (t) {
         var fade = Math.min(1, t / 0.1);
         return fade * 0.2 * Math.sin(TAU * 440 * t) * (0.85 + 0.15 * Math.sin(TAU * 5 * t));
       }) }
-  ];
+  };
+  var BUILTIN_ORDER = ['pin', 'buzz', 'chime', 'clap', 'long'];
 
   function toWavBlob(f32) {
     var n = f32.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
@@ -222,14 +307,98 @@
     return new Blob([buf], { type: 'audio/wav' });
   }
 
+  // ---------- ボタン設定の保存（localStorage + IndexedDB） ----------
+  var LS_KEY = 'mai.pads.v1';
+  var cfg = { cols: 6, rows: 4, pads: [] };
+
+  function defaultPad(i) {
+    var id = BUILTIN_ORDER[i];
+    if (id) return { name: BUILTIN[id].name, color: BUILTIN[id].color, kind: 'builtin', builtin: id, fileKey: '', fileName: '', vol: 100, pitch: 0 };
+    return { name: '', color: COLORS[i % COLORS.length], kind: 'empty', builtin: '', fileKey: '', fileName: '', vol: 100, pitch: 0 };
+  }
+  function defaultCfg() {
+    var c = { cols: 6, rows: 4, pads: [] };
+    for (var i = 0; i < SLOTS; i++) c.pads.push(defaultPad(i));
+    return c;
+  }
+  function clamp(n, lo, hi) { n = Number(n); if (isNaN(n)) n = lo; return Math.max(lo, Math.min(hi, n)); }
+
+  function loadCfg() {
+    cfg = defaultCfg();
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      var s = JSON.parse(raw);
+      cfg.cols = clamp(s.cols, 2, MAX_COLS);
+      cfg.rows = clamp(s.rows, 1, MAX_ROWS);
+      (s.pads || []).forEach(function (p, i) {
+        if (i >= SLOTS || !p) return;
+        var d = defaultPad(i);
+        d.name = String(p.name || '').slice(0, 14);
+        d.color = COLORS.indexOf(p.color) >= 0 ? p.color : d.color;
+        d.kind = (p.kind === 'builtin' && BUILTIN[p.builtin]) ? 'builtin' : (p.kind === 'file' && p.fileKey ? 'file' : 'empty');
+        d.builtin = d.kind === 'builtin' ? p.builtin : '';
+        d.fileKey = d.kind === 'file' ? p.fileKey : '';
+        d.fileName = d.kind === 'file' ? String(p.fileName || '') : '';
+        d.vol = clamp(p.vol == null ? 100 : p.vol, 0, 150);
+        d.pitch = clamp(p.pitch || 0, -12, 12);
+        cfg.pads[i] = d;
+      });
+    } catch (e) { cfg = defaultCfg(); }
+  }
+  function saveCfg() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        cols: cfg.cols, rows: cfg.rows,
+        pads: cfg.pads.map(function (p) {
+          return { name: p.name, color: p.color, kind: p.kind, builtin: p.builtin, fileKey: p.fileKey, fileName: p.fileName, vol: p.vol, pitch: p.pitch };
+        })
+      }));
+    } catch (e) { log('設定を保存できません: ' + e.message); }
+  }
+
+  // 音声ファイル本体はIndexedDBに保存
+  var dbp = null;
+  function db() {
+    if (!dbp) {
+      dbp = new Promise(function (res, rej) {
+        try {
+          var rq = indexedDB.open('mai-sound-studio', 1);
+          rq.onupgradeneeded = function () { rq.result.createObjectStore('files'); };
+          rq.onsuccess = function () { res(rq.result); };
+          rq.onerror = function () { rej(rq.error); };
+        } catch (e) { rej(e); }
+      });
+    }
+    return dbp;
+  }
+  function idb(mode, fn) {
+    return db().then(function (d) {
+      return new Promise(function (res, rej) {
+        var tx = d.transaction('files', mode);
+        var r = fn(tx.objectStore('files'));
+        tx.oncomplete = function () { res(r && r.result); };
+        tx.onerror = function () { rej(tx.error); };
+        tx.onabort = function () { rej(tx.error); };
+      });
+    });
+  }
+  function idbPut(key, blob) { return idb('readwrite', function (s) { return s.put(blob, key); }); }
+  function idbGet(key) { return idb('readonly', function (s) { return s.get(key); }); }
+  function idbDel(key) { return idb('readwrite', function (s) { return s.delete(key); }).catch(function () {}); }
+
   // ---------- 状態 ----------
   var ctx = null, master = null;
   var engine = 'webaudio';
   var sessionType = 'auto';
   var masterVol = 0.8;
   var muted = false;
+  var editing = false;
+  var editIdx = -1;
   var active = [];          // 再生中のハンドル
-  var playCount = {};       // 音ごとの再生中カウント
+  var playCount = {};       // ボタンごとの再生中カウント
+  var rt = [];              // 実行時データ { blob, url, buf, bad }（保存しない）
+  for (var ri = 0; ri < SLOTS; ri++) rt.push({});
 
   var hasSession = 'audioSession' in navigator;
 
@@ -241,7 +410,7 @@
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(hintTimer);
-    hintTimer = setTimeout(function () { el.classList.remove('show'); }, 3000);
+    hintTimer = setTimeout(function () { el.classList.remove('show'); }, 3500);
   }
 
   function cls(text, c) { return '<span class="' + c + '">' + text + '</span>'; }
@@ -281,6 +450,46 @@
     } catch (e) { /* 無視 */ }
   }
 
+  // ---------- 音声ファイルの読み込み・デコード ----------
+  function readBuf(blob) {
+    return new Promise(function (res, rej) {
+      var fr = new FileReader();
+      fr.onload = function () { res(fr.result); };
+      fr.onerror = function () { rej(fr.error); };
+      fr.readAsArrayBuffer(blob);
+    });
+  }
+  function decode(ab) {
+    return new Promise(function (res, rej) {
+      var p = ctx.decodeAudioData(ab, res, rej);
+      if (p && p.catch) p.catch(rej);
+    });
+  }
+  function decodePad(i) {
+    var r = rt[i];
+    if (!ctx || !r.blob || r.buf) return Promise.resolve();
+    return readBuf(r.blob).then(decode).then(function (buf) {
+      r.buf = buf; r.bad = false;
+    }).catch(function (e) {
+      r.bad = true; log('デコード失敗: ' + (e && e.message));
+    });
+  }
+  function decodeAll() {
+    cfg.pads.forEach(function (p, i) { if (p.kind === 'file') decodePad(i); });
+  }
+  function loadFiles() {
+    cfg.pads.forEach(function (p, i) {
+      if (p.kind !== 'file') return;
+      idbGet(p.fileKey).then(function (blob) {
+        if (!blob) { p.kind = 'empty'; p.fileKey = ''; saveCfg(); renderPads(); return; }
+        rt[i].blob = blob;
+        rt[i].url = URL.createObjectURL(blob);
+        if (ctx) decodePad(i);
+        renderPads();
+      }).catch(function () { /* 保存領域が使えない場合は何もしない */ });
+    });
+  }
+
   // ---------- 音声の準備（最初のタップで自動実行） ----------
   function ensureAudio() {
     try {
@@ -292,7 +501,8 @@
         master.gain.value = muted ? 0 : masterVol;
         master.connect(ctx.destination);
         ctx.onstatechange = function () { refresh(); };
-        SOUNDS.forEach(function (s) {
+        BUILTIN_ORDER.forEach(function (id) {
+          var s = BUILTIN[id];
           var ab = ctx.createBuffer(1, s.data.length, SR);
           ab.copyToChannel(s.data, 0);
           s.buffer = ab;
@@ -303,6 +513,7 @@
         var src = ctx.createBufferSource();
         src.buffer = b; src.connect(ctx.destination); src.start(0);
         applySession(sessionType);
+        decodeAll();
       }
       if (ctx.state !== 'running') {
         var p = ctx.resume();
@@ -330,32 +541,50 @@
   }
 
   // ---------- 再生 ----------
-  function setPlaying(id, delta) {
-    playCount[id] = Math.max(0, (playCount[id] || 0) + delta);
-    var el = document.querySelector('[data-id="' + id + '"]');
-    if (el) el.classList.toggle('playing', playCount[id] > 0);
+  function srcOf(i) {
+    var p = cfg.pads[i], r = rt[i];
+    if (p.kind === 'builtin') { var s = BUILTIN[p.builtin]; return s ? { buf: s.buffer, url: s.url } : null; }
+    if (p.kind === 'file') return { buf: r.buf, url: r.url };
+    return null;
   }
 
-  function play(s) {
+  function setPlaying(i, delta) {
+    playCount[i] = Math.max(0, (playCount[i] || 0) + delta);
+    var el = padsEl.querySelector('[data-i="' + i + '"]');
+    if (el) el.classList.toggle('playing', playCount[i] > 0);
+  }
+
+  function play(i) {
     ensureAudio();
     if (!ctx) return;
+    var p = cfg.pads[i], s = srcOf(i);
+    if (!s) return;
+    var rate = Math.pow(2, p.pitch / 12);
 
     if (engine === 'webaudio') {
+      if (!s.buf) { hint(rt[i].bad ? 'この音声ファイルは読み込めませんでした' : '読み込み中です。もう一度タップしてください'); return; }
       var src = ctx.createBufferSource();
-      src.buffer = s.buffer;
-      src.connect(master);
+      src.buffer = s.buf;
+      src.playbackRate.value = rate;
+      var g = ctx.createGain();
+      g.gain.value = p.vol / 100;
+      src.connect(g); g.connect(master);
       var h = { stop: function () { try { src.stop(); } catch (e) {} } };
       active.push(h);
-      setPlaying(s.id, 1);
+      setPlaying(i, 1);
       src.onended = function () {
-        var i = active.indexOf(h); if (i >= 0) active.splice(i, 1);
-        setPlaying(s.id, -1);
+        var k = active.indexOf(h); if (k >= 0) active.splice(k, 1);
+        setPlaying(i, -1);
       };
       src.start(0);
     } else {
+      if (!s.url) { hint('読み込み中です。もう一度タップしてください'); return; }
       var a = new Audio(s.url);
       a.preload = 'auto';
       a.muted = muted;
+      a.volume = Math.min(1, p.vol / 100);
+      a.playbackRate = rate;
+      a.preservesPitch = false; a.webkitPreservesPitch = false; a.mozPreservesPitch = false;
       var done = false;
       var h2 = {
         stop: function () { try { a.pause(); a.currentTime = 0; } catch (e) {} finish(); },
@@ -363,21 +592,17 @@
       };
       function finish() {
         if (done) return; done = true;
-        var i = active.indexOf(h2); if (i >= 0) active.splice(i, 1);
-        setPlaying(s.id, -1);
+        var k = active.indexOf(h2); if (k >= 0) active.splice(k, 1);
+        setPlaying(i, -1);
       }
       active.push(h2);
-      setPlaying(s.id, 1);
+      setPlaying(i, 1);
       a.onended = finish;
       var pr = a.play();
       if (pr && pr.catch) {
-        pr.catch(function (e) { log(s.name + ' 再生エラー: ' + e.name + ' ' + e.message); finish(); });
+        pr.catch(function (e) { log('再生エラー: ' + e.name + ' ' + e.message); finish(); });
       }
     }
-  }
-
-  function stopAll() {
-    active.slice().forEach(function (h) { h.stop(); });
   }
 
   // ---------- 全画面 ----------
@@ -401,33 +626,215 @@
   document.addEventListener('fullscreenchange', syncFull);
   document.addEventListener('webkitfullscreenchange', syncFull);
 
-  // ---------- 設定パネル ----------
-  function openDrawer(open) {
-    document.body.classList.toggle('open', open);
-    if (open) refresh();
+  // ---------- ボタン表示 ----------
+  var padsEl = $('pads');
+  function subText(p) {
+    if (p.kind === 'empty') return editing ? 'タップして設定' : '空';
+    var parts = [p.kind === 'builtin' ? BUILTIN[p.builtin].sub : 'ファイル'];
+    if (p.pitch) parts.push((p.pitch > 0 ? '+' : '') + p.pitch + '半音');
+    if (p.vol !== 100) parts.push(p.vol + '%');
+    return parts.join(' ・ ');
+  }
+  function renderPads() {
+    padsEl.style.gridTemplateColumns = 'repeat(' + cfg.cols + ', 1fr)';
+    padsEl.style.gridTemplateRows = 'repeat(' + cfg.rows + ', 1fr)';
+    var html = '';
+    var n = cfg.cols * cfg.rows;
+    for (var i = 0; i < n; i++) {
+      var p = cfg.pads[i];
+      var name = p.name || (p.kind === 'empty' ? '（空）' : '無題');
+      html += '<button type="button" class="pad' + (p.kind === 'empty' ? ' empty' : '') + (playCount[i] > 0 ? ' playing' : '') +
+        '" data-i="' + i + '" style="border-left-color:' + p.color + '"><b></b><small></small></button>';
+    }
+    padsEl.innerHTML = html;
+    for (var j = 0; j < n; j++) {
+      var q = cfg.pads[j], el = padsEl.children[j];
+      el.firstChild.textContent = q.name || (q.kind === 'empty' ? '（空）' : '無題');
+      el.lastChild.textContent = subText(q);
+    }
+    $('colsOut').textContent = cfg.cols;
+    $('rowsOut').textContent = cfg.rows;
   }
 
-  // ---------- 画面の組み立て ----------
-  var padsEl = $('pads');
-  SOUNDS.forEach(function (s) {
+  padsEl.addEventListener('pointerdown', function (e) {
+    var b = e.target.closest && e.target.closest('.pad');
+    if (!b || editing || engine !== 'webaudio') return;
+    play(Number(b.getAttribute('data-i')));
+  });
+  padsEl.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.pad');
+    if (!b) return;
+    var i = Number(b.getAttribute('data-i'));
+    if (editing) openEditor(i);
+    else if (engine === 'audio') play(i);
+  });
+
+  // ---------- 編集モード ----------
+  function setEditing(on) {
+    editing = on;
+    document.body.classList.toggle('editing', on);
+    var b = $('editBtn');
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.textContent = on ? '✎ 編集中' : '✎ 編集';
+    if (on) hint('編集したいボタンをタップしてください');
+    renderPads();
+  }
+
+  // ---------- ボタン編集パネル ----------
+  var edColors = $('edColors');
+  COLORS.forEach(function (c) {
     var b = document.createElement('button');
     b.type = 'button';
-    b.className = 'pad';
-    b.setAttribute('data-id', s.id);
-    b.style.borderLeftColor = s.color;
-    b.innerHTML = '<b>' + s.name + '</b><small>' + s.sub + '</small>';
-    // Web Audioは反応速度を優先してpointerdown、audio要素は再生許可のためclick
-    b.addEventListener('pointerdown', function () { if (engine === 'webaudio') play(s); });
-    b.addEventListener('click', function () { if (engine === 'audio') play(s); });
-    padsEl.appendChild(b);
+    b.style.background = c;
+    b.setAttribute('data-c', c);
+    b.setAttribute('aria-label', '色 ' + c);
+    edColors.appendChild(b);
+  });
+
+  function fillSource() {
+    var p = cfg.pads[editIdx];
+    var sel = $('edSource');
+    var opts = '<option value="empty">（空）</option>';
+    BUILTIN_ORDER.forEach(function (id) { opts += '<option value="b:' + id + '">内蔵：' + BUILTIN[id].name + '（' + BUILTIN[id].sub + '）</option>'; });
+    if (p.kind === 'file') opts += '<option value="file">ファイル：' + escapeHtml(p.fileName || '音声') + '</option>';
+    sel.innerHTML = opts;
+    sel.value = p.kind === 'builtin' ? 'b:' + p.builtin : (p.kind === 'file' ? 'file' : 'empty');
+  }
+  function escapeHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function syncEditor() {
+    var p = cfg.pads[editIdx];
+    $('edTitle').textContent = 'ボタン ' + (editIdx + 1) + ' の編集';
+    $('edName').value = p.name;
+    fillSource();
+    $('edVol').value = p.vol; $('edVolOut').textContent = p.vol;
+    $('edPitch').value = p.pitch; $('edPitchOut').textContent = (p.pitch > 0 ? '+' : '') + p.pitch;
+    Array.prototype.forEach.call(edColors.children, function (b) { b.classList.toggle('sel', b.getAttribute('data-c') === p.color); });
+    var dur = rt[editIdx].buf ? '（' + rt[editIdx].buf.duration.toFixed(1) + '秒）' : '';
+    $('edFileInfo').textContent = p.kind === 'file'
+      ? '割り当て中：' + (p.fileName || '音声') + dur
+      : '「ファイル」アプリやダウンロードから、MP3・M4A・WAVを選べます。選ぶと名前もファイル名になります（あとで変更できます）。';
+  }
+  function openEditor(i) {
+    editIdx = i;
+    syncEditor();
+    document.body.classList.add('edit-open');
+  }
+  function closePanels() {
+    document.body.classList.remove('open');
+    document.body.classList.remove('edit-open');
+    editIdx = -1;
+    renderPads();
+  }
+  function commitEdit() { saveCfg(); renderPads(); }
+
+  $('edName').addEventListener('input', function (e) {
+    cfg.pads[editIdx].name = e.target.value.slice(0, 14);
+    commitEdit();
+  });
+  $('edVol').addEventListener('input', function (e) {
+    cfg.pads[editIdx].vol = Number(e.target.value);
+    $('edVolOut').textContent = e.target.value;
+    commitEdit();
+  });
+  $('edPitch').addEventListener('input', function (e) {
+    var v = Number(e.target.value);
+    cfg.pads[editIdx].pitch = v;
+    $('edPitchOut').textContent = (v > 0 ? '+' : '') + v;
+    commitEdit();
+  });
+  $('edVolReset').addEventListener('click', function () { cfg.pads[editIdx].vol = 100; commitEdit(); syncEditor(); });
+  $('edPitchReset').addEventListener('click', function () { cfg.pads[editIdx].pitch = 0; commitEdit(); syncEditor(); });
+  edColors.addEventListener('click', function (e) {
+    var c = e.target.getAttribute && e.target.getAttribute('data-c');
+    if (!c) return;
+    cfg.pads[editIdx].color = c; commitEdit(); syncEditor();
+  });
+
+  function dropFile(i) {
+    var p = cfg.pads[i], r = rt[i];
+    if (p.fileKey) idbDel(p.fileKey);
+    if (r.url) { try { URL.revokeObjectURL(r.url); } catch (e) {} }
+    rt[i] = {};
+    p.fileKey = ''; p.fileName = '';
+  }
+  $('edSource').addEventListener('change', function (e) {
+    var v = e.target.value, p = cfg.pads[editIdx];
+    if (v === 'file') return;
+    dropFile(editIdx);
+    if (v === 'empty') { p.kind = 'empty'; p.builtin = ''; }
+    else {
+      p.kind = 'builtin'; p.builtin = v.slice(2);
+      if (!p.name) p.name = BUILTIN[p.builtin].name;
+    }
+    commitEdit(); syncEditor();
+  });
+  $('edClear').addEventListener('click', function () {
+    var p = cfg.pads[editIdx];
+    dropFile(editIdx);
+    p.kind = 'empty'; p.builtin = ''; p.name = ''; p.vol = 100; p.pitch = 0;
+    commitEdit(); syncEditor();
+  });
+  $('edTry').addEventListener('click', function () { play(editIdx); });
+  $('edPick').addEventListener('click', function () { $('fileInput').click(); });
+
+  $('fileInput').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f || editIdx < 0) return;
+    var i = editIdx, p = cfg.pads[i];
+    ensureAudio();
+    var key = 'f' + Date.now() + '-' + i;
+    var old = { fileKey: p.fileKey, url: rt[i].url };
+    if (old.fileKey) idbDel(old.fileKey);
+    if (old.url) { try { URL.revokeObjectURL(old.url); } catch (er) {} }
+    rt[i] = { blob: f, url: URL.createObjectURL(f) };
+    p.kind = 'file'; p.builtin = ''; p.fileKey = key; p.fileName = f.name;
+    p.name = f.name.replace(/\.[^.]+$/, '').slice(0, 14);
+    idbPut(key, f).catch(function () { hint('この端末では音声ファイルを保存できません（今回だけ使えます）'); });
+    commitEdit(); syncEditor();
+    decodePad(i).then(function () {
+      if (rt[i].bad) {
+        hint('この音声ファイルは読み込めませんでした');
+        dropFile(i); p.kind = 'empty'; p.name = ''; commitEdit();
+      } else if (rt[i].buf && rt[i].buf.duration > 30) {
+        hint('長い音声です（' + Math.round(rt[i].buf.duration) + '秒）。効果音は短めがおすすめです');
+      }
+      if (editIdx === i) syncEditor();
+    });
+  });
+
+  // ---------- 設定パネル ----------
+  function openDrawer() {
+    document.body.classList.add('open');
+    refresh();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-grid]'), function (b) {
+    b.addEventListener('click', function () {
+      var k = b.getAttribute('data-grid'), d = Number(b.getAttribute('data-d'));
+      if (k === 'cols') cfg.cols = clamp(cfg.cols + d, 2, MAX_COLS);
+      else cfg.rows = clamp(cfg.rows + d, 1, MAX_ROWS);
+      saveCfg(); renderPads();
+    });
+  });
+  $('goEdit').addEventListener('click', function () { closePanels(); setEditing(true); });
+  $('resetAll').addEventListener('click', function () {
+    if (!confirm('割り当てたMP3・名前・音量・ピッチをすべて消して、初期状態に戻します。よろしいですか？')) return;
+    cfg.pads.forEach(function (p, i) { if (p.fileKey) idbDel(p.fileKey); if (rt[i].url) { try { URL.revokeObjectURL(rt[i].url); } catch (e) {} } });
+    try { localStorage.removeItem(LS_KEY); } catch (e) { /* 無視 */ }
+    for (var k = 0; k < SLOTS; k++) rt[k] = {};
+    loadCfg(); closePanels(); setEditing(false);
+    hint('初期状態に戻しました');
   });
 
   $('mute').addEventListener('click', function () { setMuted(!muted); });
-  $('stop').addEventListener('click', stopAll);
+  $('editBtn').addEventListener('click', function () { setEditing(!editing); });
   $('full').addEventListener('click', toggleFull);
-  $('menu').addEventListener('click', function () { openDrawer(true); });
-  $('close').addEventListener('click', function () { openDrawer(false); });
-  $('backdrop').addEventListener('click', function () { openDrawer(false); });
+  $('menu').addEventListener('click', openDrawer);
+  $('close').addEventListener('click', closePanels);
+  $('edClose').addEventListener('click', closePanels);
+  $('backdrop').addEventListener('click', closePanels);
 
   Array.prototype.forEach.call(document.querySelectorAll('input[name=session]'), function (r) {
     r.addEventListener('change', function () { applySession(r.value); });
@@ -447,6 +854,11 @@
   });
   window.addEventListener('error', function (e) { log('JSエラー: ' + e.message); });
 
+  // ---------- 起動 ----------
+  loadCfg();
+  renderPads();
+  loadFiles();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* 無視 */ }
   refresh();
 })();
 </script>
