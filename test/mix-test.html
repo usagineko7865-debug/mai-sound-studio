@@ -194,9 +194,9 @@
   </section>
 
   <section>
-    <h2>全体音量（Web Audioのみ）：<span id="volLabel">80</span>%</h2>
-    <input id="vol" type="range" min="0" max="100" value="80" aria-label="全体音量">
-    <p class="note">基本は「auto + Web Audio」→「ambient + Web Audio」の順に試してください。</p>
+    <h2>全体音量（Web Audioのみ）：<span id="volLabel">100</span>%</h2>
+    <input id="vol" type="range" min="0" max="300" step="5" value="100" aria-label="全体音量">
+    <p class="note">100%が標準で、300%まで上げられます。音が割れないよう、大きくしすぎた分は自動で抑えます。それでも小さいときは、iPad本体の音量も確認してください。基本は「auto + Web Audio」→「ambient + Web Audio」の順に試してください。</p>
   </section>
 
   <section>
@@ -281,8 +281,8 @@
 
   <section>
     <h2>音量：<span id="edVolOut" class="val">100</span>%</h2>
-    <input id="edVol" type="range" min="0" max="150" step="5" value="100" aria-label="ボタンの音量">
-    <p class="note">100%が元の大きさ。150%まで上げられますが、上げすぎると音が割れます。</p>
+    <input id="edVol" type="range" min="0" max="300" step="5" value="100" aria-label="ボタンの音量">
+    <p class="note">100%が元の大きさ。300%まで上げられます。大きくしすぎた分は自動で抑えますが、上げすぎると音がつぶれます。</p>
   </section>
 
   <section>
@@ -348,6 +348,12 @@
       }) }
   };
   var BUILTIN_ORDER = ['pin', 'buzz', 'chime', 'clap', 'long'];
+  // 内蔵音は小さめに作ってあるので、いちばん大きい所が約90%になるよう揃える
+  BUILTIN_ORDER.forEach(function (id) {
+    var d = BUILTIN[id].data, peak = 0, i;
+    for (i = 0; i < d.length; i++) { var a = Math.abs(d[i]); if (a > peak) peak = a; }
+    if (peak > 0) { var k = 0.9 / peak; for (i = 0; i < d.length; i++) d[i] *= k; }
+  });
 
   function toWavBlob(f32) {
     var n = f32.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
@@ -386,7 +392,7 @@
     }
     return b;
   }
-  function defaultCfg() { return { bank: 0, lock: false, banks: [defaultBank('ページ1', true)] }; }
+  function defaultCfg() { return { bank: 0, lock: false, master: 100, banks: [defaultBank('ページ1', true)] }; }
 
   function parsePad(p) {
     var d = emptyPad();
@@ -397,7 +403,7 @@
     d.builtin = d.kind === 'builtin' ? p.builtin : '';
     d.fileKey = d.kind === 'file' ? String(p.fileKey) : '';
     d.fileName = d.kind === 'file' ? String(p.fileName || '') : '';
-    d.vol = clamp(p.vol == null ? 100 : p.vol, 0, 150);
+    d.vol = clamp(p.vol == null ? 100 : p.vol, 0, 300);
     d.pitch = clamp(p.pitch || 0, -12, 12);
     d.mode = MODES.hasOwnProperty(p.mode) ? p.mode : 'once';
     d.start = clamp(p.start || 0, 0, 60);
@@ -415,13 +421,13 @@
   function parseCfg(s) {
     if (!s || typeof s !== 'object') return defaultCfg();
     var banks = s.banks && s.banks.length ? s.banks : [{ name: 'ページ1', cols: s.cols, rows: s.rows, pads: s.pads }];
-    var c = { bank: 0, lock: !!s.lock, banks: banks.slice(0, MAX_BANKS).map(parseBank) };
+    var c = { bank: 0, lock: !!s.lock, master: clamp(s.master == null ? 100 : s.master, 0, 300), banks: banks.slice(0, MAX_BANKS).map(parseBank) };
     c.bank = clamp(s.bank || 0, 0, c.banks.length - 1);
     return c;
   }
   function serializeCfg() {
     return {
-      v: 2, bank: cfg.bank, lock: cfg.lock,
+      v: 2, bank: cfg.bank, lock: cfg.lock, master: cfg.master,
       banks: cfg.banks.map(function (b) {
         return {
           name: b.name, cols: b.cols, rows: b.rows,
@@ -488,7 +494,7 @@
   var ctx = null, master = null;
   var engine = 'webaudio';
   var sessionType = 'auto';
-  var masterVol = 0.8;
+  var masterVol = 1;
   var muted = false;
   var editing = false;
   var editPad = null;       // 編集中のボタン
@@ -643,7 +649,11 @@
         ctx = new AC({ latencyHint: 'interactive' });
         master = ctx.createGain();
         master.gain.value = muted ? 0 : masterVol;
-        master.connect(ctx.destination);
+        // 音量を上げても割れにくいよう、最後にリミッター（強めのコンプレッサー）を通す
+        var lim = ctx.createDynamicsCompressor();
+        lim.threshold.value = -6; lim.knee.value = 0; lim.ratio.value = 20;
+        lim.attack.value = 0.002; lim.release.value = 0.1;
+        master.connect(lim); lim.connect(ctx.destination);
         ctx.onstatechange = function () { refresh(); };
         BUILTIN_ORDER.forEach(function (id) {
           if (BUILTIN[id].url) { try { URL.revokeObjectURL(BUILTIN[id].url); } catch (e) {} }
@@ -1169,7 +1179,7 @@
         cfg = next;
         saveCfg(); pruneFiles();
         if (ctx) decodeAll();
-        closePanels(); renderBanks(); renderPads(); $('lockLand').checked = cfg.lock;
+        closePanels(); renderBanks(); renderPads(); $('lockLand').checked = cfg.lock; setMaster(cfg.master);
         hint('読み込みました');
       }).catch(function (e) { hint('読み込みに失敗しました: ' + (e && e.message)); });
     };
@@ -1206,7 +1216,7 @@
     try { localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_KEY_V1); } catch (e) { /* 無視 */ }
     cfg = defaultCfg();
     pruneFiles();
-    closePanels(); setEditing(false); renderBanks(); renderPads(); $('lockLand').checked = cfg.lock;
+    closePanels(); setEditing(false); renderBanks(); renderPads(); $('lockLand').checked = cfg.lock; setMaster(cfg.master);
     hint('初期状態に戻しました');
   });
 
@@ -1229,11 +1239,14 @@
   Array.prototype.forEach.call(document.querySelectorAll('input[name=engine]'), function (r) {
     r.addEventListener('change', function () { engine = r.value; refresh(); });
   });
-  $('vol').addEventListener('input', function (e) {
-    masterVol = e.target.value / 100;
-    $('volLabel').textContent = e.target.value;
+  function setMaster(pct) {
+    cfg.master = clamp(pct, 0, 300);
+    masterVol = cfg.master / 100;
+    $('vol').value = cfg.master;
+    $('volLabel').textContent = cfg.master;
     if (master && !muted) master.gain.value = masterVol;
-  });
+  }
+  $('vol').addEventListener('input', function (e) { setMaster(e.target.value); saveCfg(); });
 
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') ensureAudio();
@@ -1243,6 +1256,7 @@
 
   // ---------- 起動 ----------
   loadCfg();
+  setMaster(cfg.master);
   $('lockLand').checked = cfg.lock;
   renderBanks();
   renderPads();
