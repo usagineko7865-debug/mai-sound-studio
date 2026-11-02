@@ -195,7 +195,7 @@
 
   <section>
     <h2>全体音量（Web Audioのみ）：<span id="volLabel">100</span>%</h2>
-    <input id="vol" type="range" min="0" max="300" step="5" value="100" aria-label="全体音量">
+    <input id="vol" type="range" min="0" max="500" step="5" value="100" aria-label="全体音量">
     <p class="note">100%が標準で、300%まで上げられます。音が割れないよう、大きくしすぎた分は自動で抑えます。それでも小さいときは、iPad本体の音量も確認してください。基本は「auto + Web Audio」→「ambient + Web Audio」の順に試してください。</p>
   </section>
 
@@ -651,7 +651,7 @@
         master.gain.value = muted ? 0 : masterVol;
         // 音量を上げても割れにくいよう、最後にリミッター（強めのコンプレッサー）を通す
         var lim = ctx.createDynamicsCompressor();
-        lim.threshold.value = -6; lim.knee.value = 0; lim.ratio.value = 20;
+        lim.threshold.value = -3; lim.knee.value = 0; lim.ratio.value = 20;
         lim.attack.value = 0.002; lim.release.value = 0.1;
         master.connect(lim); lim.connect(ctx.destination);
         ctx.onstatechange = function () { refresh(); };
@@ -758,7 +758,7 @@
       var off = Math.min(p.start, Math.max(0, s.buf.duration - 0.02));
       if (loop) { src.loop = true; src.loopStart = off; src.loopEnd = s.buf.duration; }
       var g = ctx.createGain();
-      g.gain.value = p.vol / 100;
+      g.gain.value = p.vol / 100 * normGain(s.buf);
       src.connect(g); g.connect(master);
       var h = {
         stop: function () {
@@ -804,6 +804,18 @@
   }
 
   // 音が始まる位置を探す（先頭の無音を飛ばすため）
+  // 録音レベルが小さいMP3でも同じ大きさで鳴るよう、最大ピークが約95%になる倍率を求める（最大12倍）
+  function normGain(buf) {
+    if (buf._norm) return buf._norm;
+    var peak = 0, c, i, d;
+    for (c = 0; c < buf.numberOfChannels; c++) {
+      d = buf.getChannelData(c);
+      for (i = 0; i < d.length; i++) { var a = d[i] < 0 ? -d[i] : d[i]; if (a > peak) peak = a; }
+    }
+    buf._norm = peak > 0.0001 ? Math.min(12, Math.max(1, 0.95 / peak)) : 1;
+    return buf._norm;
+  }
+
   function findStart(buf) {
     var thr = 0.02, n = buf.length, sr = buf.sampleRate, best = n;
     for (var c = 0; c < buf.numberOfChannels; c++) {
@@ -1240,7 +1252,7 @@
     r.addEventListener('change', function () { engine = r.value; refresh(); });
   });
   function setMaster(pct) {
-    cfg.master = clamp(pct, 0, 300);
+    cfg.master = clamp(pct, 0, 500);
     masterVol = cfg.master / 100;
     $('vol').value = cfg.master;
     $('volLabel').textContent = cfg.master;
